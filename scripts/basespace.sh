@@ -20,31 +20,29 @@ cd ../temp-local-only
 bs download run -i 213208043 -o AS_RC_6samples_2pools_08092021
 
 # run bcl2fastq to generate fastq from scratch
+# to install bcl2fastq download the RPM from Illumina or use '~/Dropbox/Permanent/reinstalls/software/bcl2fastq2-v2-20-0-linux-x86-64.zip'
+# just unpack and copy the whole dir into '~/Software'
 cd AS_RC_6samples_2pools_08092021
 bcl2fastq --ignore-missing-bcls --ignore-missing-filter --ignore-missing-positions --ignore-missing-controls --adapter-stringency 0.9 --barcode-mismatches 0 --mask-short-adapter-reads 35 --minimum-trimmed-read-length 35 --sample-sheet "SampleSheetUsed.csv" --no-lane-splitting
 
-# md5sum the regenerated fastq 
-md5sum IRW_LIB1_ICE_09122019_RUN/Data/Intensities/BaseCalls/LIB1_ICE_S1_R1_001.fastq.gz
-md5sum IRW_LIB1_ICE_09122019_RUN/Data/Intensities/BaseCalls/LIB1_ICE_S1_R2_001.fastq.gz
+## cat the libraries together
+# Kilombero_Tele02_Lib01_R1.fastq.gz
+cat Data/Intensities/BaseCalls/AS_A01_S4_R1_001.fastq.gz Data/Intensities/BaseCalls/AS_A04_S3_R1_001.fastq.gz Data/Intensities/BaseCalls/AS_A05_S1_R1_001.fastq.gz > Data/Intensities/BaseCalls/Kilombero_Tele02_Lib01_R1.fastq.gz
+# Kilombero_Tele02_Lib01_R2.fastq.gz
+cat Data/Intensities/BaseCalls/AS_A01_S4_R2_001.fastq.gz Data/Intensities/BaseCalls/AS_A04_S3_R2_001.fastq.gz Data/Intensities/BaseCalls/AS_A05_S1_R2_001.fastq.gz > Data/Intensities/BaseCalls/Kilombero_Tele02_Lib01_R2.fastq.gz
+# Kilombero_Tele02_Lib02_R1.fastq.gz
+cat Data/Intensities/BaseCalls/AS_A07_S2_R1_001.fastq.gz Data/Intensities/BaseCalls/AS_A08_S6_R1_001.fastq.gz Data/Intensities/BaseCalls/AS_A11_S5_R1_001.fastq.gz > Data/Intensities/BaseCalls/Kilombero_Tele02_Lib02_R1.fastq.gz
+# Kilombero_Tele02_Lib02_R2.fastq.gz
+cat Data/Intensities/BaseCalls/AS_A07_S2_R2_001.fastq.gz Data/Intensities/BaseCalls/AS_A08_S6_R2_001.fastq.gz Data/Intensities/BaseCalls/AS_A11_S5_R2_001.fastq.gz > Data/Intensities/BaseCalls/Kilombero_Tele02_Lib02_R2.fastq.gz
 
-# md5sums
-md5sum Data/Intensities/BaseCalls/A06_S1_R1_001.fastq.gz
-md5sum Data/Intensities/BaseCalls/A06_S1_R2_001.fastq.gz
-md5sum Data/Intensities/BaseCalls/A12_S2_R1_001.fastq.gz
-md5sum Data/Intensities/BaseCalls/A12_S2_R2_001.fastq.gz
+# get md5sums for all 
+md5sum Data/Intensities/BaseCalls/*.fastq.gz > Data/Intensities/BaseCalls/fastq.md5
 
-# 75aca1160bc5989fc2766725edd3b78b A06_S1_R1_001.fastq.gz
-# cbd3fa76d0a61c53db9bde41978d21b1 A06_S1_R2_001.fastq.gz
-# 0b8eebf52b1185a5595402e1bfe69851 A12_S2_R1_001.fastq.gz
-# 419abc4af510cbccaa5a11605cd652cd A12_S2_R2_001.fastq.gz
+# check md5
+md5sum -c Data/Intensities/BaseCalls/fastq.md5
 
-# merge runs
-cat Data/Intensities/BaseCalls/A06_S1_R1_001.fastq.gz Data/Intensities/BaseCalls/A12_S2_R1_001.fastq.gz > Data/Intensities/BaseCalls/SeaDNA_Tele02_Lib03v2_R1.fastq.gz
-cat Data/Intensities/BaseCalls/A06_S1_R2_001.fastq.gz Data/Intensities/BaseCalls/A12_S2_R2_001.fastq.gz > Data/Intensities/BaseCalls/SeaDNA_Tele02_Lib03v2_R2.fastq.gz
+# count reads
+seqkit -j 8 stats Data/Intensities/BaseCalls/Kilombero_Tele02_Lib01_R1.fastq.gz
+seqkit -j 8 stats Data/Intensities/BaseCalls/Kilombero_Tele02_Lib02_R1.fastq.gz
 
-# md5sums
-md5sum Data/Intensities/BaseCalls/SeaDNA_Tele02_Lib03v2_R1.fastq.gz
-md5sum Data/Intensities/BaseCalls/SeaDNA_Tele02_Lib03v2_R2.fastq.gz
-
-# 1d2e263e21236cf42486e1037ba936f8 SeaDNA_Tele02_Lib03v2_R1.fastq.gz
-# 1f27da3c73633ba5355639d4e683b941 SeaDNA_Tele02_Lib03v2_R2.fastq.gz
+# copy the reads over to the rdsf
