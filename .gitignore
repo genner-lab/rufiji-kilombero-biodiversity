@@ -41,3 +41,6 @@ vignettes/*.pdf
 #
 temp
 temp-local-only
+meta-fish-pipe
+refseq-reflib
+meta-fish-lib
