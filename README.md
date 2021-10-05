@@ -20,7 +20,7 @@ mkdir -p reports temp/fasta-temp
 cp ../temp/ncbi-key.R assets/ncbi-key.R
 Rscript -e "renv::restore()"
 cp ../assets/species-table.csv assets/species-table.csv
-scripts/sequences-download.R -q 2000 -d 200 -t 4 -e false
+scripts/sequences-download.R -q 1000 -t 4 -e false
 scripts/references-assemble.R -t 4 -m 12s.taberlet
 
 # add local seqs and qc - open R
@@ -28,7 +28,7 @@ library("here")
 library("tidyverse")
 source(here::here("scripts/references-load-local.R"))
 locals <- read_csv(file=here("../assets/local-12s.csv"))
-reflib.orig %>% bind_rows(locals) %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
+reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(class,order,family,genus,sciNameValid,dbid) %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
 
 # qc
 scripts/qc.R -p ~/Software/standard-RAxML/raxmlHPC-AVX -t 1
