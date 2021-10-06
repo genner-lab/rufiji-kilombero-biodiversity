@@ -20,18 +20,26 @@ mkdir -p reports temp/fasta-temp
 cp ../temp/ncbi-key.R assets/ncbi-key.R
 Rscript -e "renv::restore()"
 cp ../assets/species-table.csv assets/species-table.csv
-scripts/sequences-download.R -q 1000 -t 4 -e false
+cp ../assets/exclusions.csv assets/exclusions.csv
+scripts/sequences-download.R -q 2000 -t 3 -e false
 scripts/references-assemble.R -t 4 -m 12s.taberlet
+# backup (or copy back)
+cp assets/reference-library-master.csv.gz assets/reference-library-master-nolocal.csv.gz
+cp assets/reference-library-master-nolocal.csv.gz assets/reference-library-master.csv.gz
 
-# add local seqs and qc - open R
+# add local seqs and qc in R (need to make into script)
 library("here")
 library("tidyverse")
 source(here::here("scripts/references-load-local.R"))
+source(here::here("scripts/references-clean.R"))
 locals <- read_csv(file=here("../assets/local-12s.csv"))
-reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(class,order,family,genus,sciNameValid,dbid) %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
+reflib.local <- reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(class,order,family,genus,sciNameValid,dbid) 
+reflib.local %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
+reflib.local %>% write_csv(file=here("../meta-fish-pipe/assets/meta-fish-lib-v245.csv"), na="")
 
 # qc
 scripts/qc.R -p ~/Software/standard-RAxML/raxmlHPC-AVX -t 1
+scripts/qc.R -p raxmlHPC -t 1
 
 # get refseq
 cd refseq-reflib
@@ -50,7 +58,7 @@ cp assets/contaminants-exclude.csv meta-fish-pipe/assets/contaminants-exclude.cs
 # set up pipeline
 cd meta-fish-pipe
 Rscript -e "renv::restore()"
-scripts/session-info.sh  -r assets/refseq208-annotated-tele02.csv -c assets/meta-fish-lib-v243.csv
+scripts/session-info.sh  -r assets/refseq208-annotated-tele02.csv -c assets/meta-fish-lib-v245.csv
 
 # set up libs
 scripts/prepare-libraries.sh -p tele02 -l lib1
@@ -72,10 +80,6 @@ scripts/generate-barcodes.R -p tele02 -l lib2 -f 18 -r 20 -m assets/sequencing-m
 # demultiplex
 scripts/demultiplex.sh -p tele02 -l lib1 -f AAACTCGTGCCAGCCACC -r GGGTATCTAATCCCAGTTTG -t 8 -m 18
 scripts/demultiplex.sh -p tele02 -l lib2 -f AAACTCGTGCCAGCCACC -r GGGTATCTAATCCCAGTTTG -t 8 -m 18
-
-######
-got up to here - need reflib priors
-###### 
 
 # denoise with dada2
 scripts/dada2.R -p tele02 -l lib1
