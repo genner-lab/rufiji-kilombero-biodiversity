@@ -25,7 +25,7 @@ scripts/sequences-download.R -q 2000 -t 3 -e false
 scripts/references-assemble.R -t 4 -m 12s.taberlet
 # backup (or copy back)
 cp assets/reference-library-master.csv.gz assets/reference-library-master-nolocal.csv.gz
-cp assets/reference-library-master-nolocal.csv.gz assets/reference-library-master.csv.gz
+#cp assets/reference-library-master-nolocal.csv.gz assets/reference-library-master.csv.gz
 
 # add local seqs and qc in R (need to make into script)
 library("here")
@@ -33,7 +33,7 @@ library("tidyverse")
 source(here::here("scripts/references-load-local.R"))
 source(here::here("scripts/references-clean.R"))
 locals <- read_csv(file=here("../assets/local-12s.csv"))
-reflib.local <- reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(class,order,family,genus,sciNameValid,dbid) 
+reflib.local <- reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(phylum,class,order,family,genus,sciNameValid,dbid)
 reflib.local %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
 reflib.local %>% write_csv(file=here("../meta-fish-pipe/assets/meta-fish-lib-v245.csv"), na="")
 
