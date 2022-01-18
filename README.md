@@ -94,4 +94,27 @@ scripts/taxonomic-assignment.sh -t 8 -p tele02
 
 # assemble results
 scripts/assemble-results.R -c assets/contaminants-exclude.csv
+
+# jan 2022 - reanalyse with new reference library
+# in reflib copy files
+cd meta-fish-lib
+cp ../assets/exclusions.csv assets/exclusions.csv
+cp assets/reference-library-master-nolocal.csv.gz assets/reference-library-master.csv.gz
+# in R add local seqs
+library("here")
+library("tidyverse")
+source(here::here("scripts/references-load-local.R"))
+source(here::here("scripts/references-clean.R"))
+locals <- read_csv(file=here("../assets/local-12s.csv"))
+reflib.local <- reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(phylum,class,order,family,genus,sciNameValid,dbid)
+reflib.local %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
+reflib.local %>% write_csv(file=here("../meta-fish-pipe/assets/meta-fish-lib-v245.csv"), na="")
+# qc
+scripts/qc.R -p raxmlHPC -t 2
+
+# in pipe
+cd meta-fish-pipe
+cp assets/meta-fish-lib-v245.csv temp/taxonomic-assignment/custom-reference-library.csv
+scripts/taxonomic-assignment.sh -t 8 -p tele02
+scripts/assemble-results.R -c assets/contaminants-exclude.csv
 ```
