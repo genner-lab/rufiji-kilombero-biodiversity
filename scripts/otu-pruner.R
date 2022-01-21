@@ -5,6 +5,7 @@ library("here")
 library("tidyverse")
 library("lulu")
 library("ape")
+library("phangorn")
 source("https://raw.githubusercontent.com/legalLab/protocols-scripts/master/scripts/tab2fas.R")
 # https://github.com/tobiasgf/lulu
 options(width=180)
@@ -66,7 +67,6 @@ tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash") %>% write.FASTA(here(
 # run blast to generate matchlist
 system("./scripts/blast-match-list.sh")
 
-
 # load otu table using base R!
 asv.table <- read.csv(here("temp-local-only/asvs-table-lulu.csv"),sep=",",header=TRUE,as.is=TRUE,row.names=1)
 #head(asv.table)
@@ -80,14 +80,14 @@ match.list <- read.table(here("temp-local-only/lulu-blast-matchlist.tsv"),sep="\
 #,minimum_ratio_type="min",minimum_ratio=1,minimum_match=84,minimum_relative_cooccurence=0.95
 lulu.result <- lulu(otutable=asv.table,matchlist=match.list)
 
-# 
+# format lulu result - add identities, and assignments
 lulu.result.by.asv <- lulu.result$otu_map %>% 
     rownames_to_column(var="asvHash") %>% 
     tibble() %>%
     left_join(rename(tibble(match.list),asvHash=V1,parent_id=V2,parentIdentity=V3)) %>%
     left_join(rename(select(tax.sub,asvHash,assignedName,assigned),parent_id=asvHash,parentName=assignedName,parentAssigned=assigned))
 
-# 
+# join lulu result with assignment table
 tax.sub.lulu  <- tax.sub %>% 
     left_join(lulu.result.by.asv) %>%
     select(asvHash,nreads,assigned,assignedName,blastSpeciesID,blastPident,parent_id,parentName,parentAssigned,curated,parentIdentity,rank,spread) %>%
@@ -96,6 +96,119 @@ tax.sub.lulu  <- tax.sub %>%
 
 # write
 tax.sub.lulu %>% write_csv(here("temp-local-only/taxonomic-assignments-lulu.csv"))
+#read back in 
+tax.sub.lulu <- read_csv(here("temp-local-only/taxonomic-assignments-lulu.csv"))
+
+# get number parent otus
+tax.sub.lulu %>% filter(curated=="parent") %>% distinct(asvHash)
+
+# subset the merged but already assigned spp - where lulu is WRONG
+tax.sub.lulu %>% 
+    filter(curated=="merged" & parentName!=assignedName & blastPident>parentIdentity) %>% #assigned==TRUE & 
+    arrange(desc(assigned),parent_id,desc(nreads)) %>%
+    #write_csv(here("temp-local-only/taxonomic-assignments-lulu-merged.csv"))
+    print(n=Inf)
+
+# subset the merged but same assigned spp - where lulu is CORRECT
+tax.sub.lulu %>% 
+    filter(curated=="merged" & parentName==assignedName) %>% #assigned==TRUE & 
+    #arrange(desc(assigned),parent_id,desc(nreads)) %>%
+    #write_csv(here("temp-local-only/taxonomic-assignments-lulu-merged.csv"))
+    print(n=Inf)
+
+
+# get assigned names
+lulu.assigned.spp <- tax.sub.lulu %>% 
+    filter(curated=="parent" & assigned==TRUE) 
+
+# get unassigned names
+lulu.unassigned.spp <- tax.sub.lulu %>% 
+    filter(curated=="parent" & assigned==FALSE)
+
+# print unique names of assigned unassigned
+lulu.assigned.spp %>% 
+    distinct(parentName) %>% 
+    pull(parentName)
+lulu.unassigned.spp %>%
+    distinct(parentName) %>%
+    pull(parentName)
+
+# 
+setdiff(lulu.unassigned.spp %>%
+    distinct(parentName) %>%
+    pull(parentName),
+    lulu.assigned.spp %>% 
+    distinct(parentName) %>% 
+    pull(parentName))
+
+# pull out unassigned for blast
+unassigned.fas <- tax.sub %>% filter(asvHash %in% pull(lulu.unassigned.spp,asvHash)) %>% mutate(label=paste(asvHash,assignedName,nreads,sep="_"))
+tab2fas(df=unassigned.fas,seqcol="nucleotides",namecol="label") %>% write.FASTA(here("temp-local-only/unassigned-blast.fasta"))
+
+
+# correct the incorrect merges and filter
+tax.sub.lulu.filtered <- tax.sub.lulu %>% 
+    mutate(luluMerge=curated) %>%
+    mutate(luluMerge=if_else(curated=="merged" & parentName!=assignedName & blastPident>parentIdentity,"corrected",luluMerge)) %>% 
+    filter(luluMerge=="parent" | luluMerge=="corrected") %>%
+    filter(nreads>1) %>%
+    filter(blastPident<100)# %>% #assigned!=FALSE | 
+
+
+parents <- tax.sub %>% filter(asvHash %in% pull(tax.sub.lulu.filtered,asvHash)) 
+parents.fas <- tab2fas(df=parents ,seqcol="nucleotides",namecol="asvHash")
+
+# load reflib
+refs.fas <- read.FASTA(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.fasta"))
+#refs.csv <- read_csv(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.csv"))
+
+# join 
+write.FASTA(c(refs.fas,parents.fas),here("temp-local-only/mptp-parents.fasta"))
+
+
+# NEW RAXML-NG FUN
+raxml_ng <- function(file) {
+        string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
+        system(command=string.mafft,ignore.stdout=FALSE)
+        string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
+        system(command=string.parse,ignore.stdout=FALSE)
+        string.search <- paste0("raxml-ng --search --msa ",file,".ali.raxml.rba --tree pars{1} --lh-epsilon 0.1 --seed 42 --redo --threads auto")
+        system(command=string.search,ignore.stdout=FALSE)
+        rax.tr <- ape::read.tree(file=paste0(file,".ali.raxml.rba.raxml.bestTree"))
+    return(rax.tr)
+}
+
+
+# run raxml
+mptp.tr <- raxml_ng(file=here("temp-local-only/mptp-parents.fasta"))
+#mptp.tr <- ape::read.tree(file=paste0(here("temp-local-only/mptp-parents.fasta"),".ali.raxml.rba.raxml.bestTree"))
+
+plot(ladderize(midpoint(mptp.tr)),cex=0.001)
+
+# write out rooted tree
+write.tree(ladderize(midpoint(mptp.tr)),here("temp-local-only/mptp-parents.nwk")) 
+
+
+
+# run mptp
+mptp <- function(file) {
+        string.mptp <- paste0("mptp --ml --single --tree_file ",file," --output_file ",file,".mptp.out")
+        #  --minbr 0.0001
+        #system("export PATH=~/Software/mptp/bin:$PATH")
+        system(command=string.mptp,ignore.stdout=FALSE)
+        #x <- x
+    #return(string.mptp)
+}
+
+mptp(file=here("temp-local-only/mptp-parents.nwk"))
+
+
+## mptp --ml --single --minbr 0.0001 --tree_file ml.haps.tr.nwk --output_file ml.haps.tr.nwk.out
+
+
+
+
+
 
 
 
