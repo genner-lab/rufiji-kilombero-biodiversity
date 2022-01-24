@@ -1,14 +1,7 @@
 #!/usr/bin/env Rscript
 
-# lib
-library("here")
-library("tidyverse")
-library("lulu")
-library("ape")
-library("phangorn")
-source("https://raw.githubusercontent.com/legalLab/protocols-scripts/master/scripts/tab2fas.R")
-# https://github.com/tobiasgf/lulu
-options(width=180)
+# libs and funs
+source(here("scripts/libs-funs.R"))
 
 # load the assigned taxonomy file
 tax.ass <- read_csv(here("meta-fish-pipe/results/taxonomic-assignments.csv"))
@@ -160,160 +153,68 @@ parents.fas <- tab2fas(df=parents ,seqcol="nucleotides",namecol="asvHash")
 
 # load reflib
 refs.fas <- read.FASTA(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.fasta"))
-#refs.csv <- read_csv(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.csv"))
+refs.csv <- read_csv(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.csv"))
 
 # join 
 write.FASTA(c(refs.fas,parents.fas),here("temp-local-only/mptp-parents.fasta"))
 
 
-# NEW RAXML-NG FUN
-raxml_ng <- function(file) {
-        string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
-        system(command=string.mafft,ignore.stdout=FALSE)
-        string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
-        system(command=string.parse,ignore.stdout=FALSE)
-        string.search <- paste0("raxml-ng --search --msa ",file,".ali.raxml.rba --tree pars{1} --lh-epsilon 0.1 --seed 42 --redo --threads auto")
-        system(command=string.search,ignore.stdout=FALSE)
-        rax.tr <- ape::read.tree(file=paste0(file,".ali.raxml.rba.raxml.bestTree"))
-    return(rax.tr)
-}
-
-
 # run raxml
 mptp.tr <- raxml_ng(file=here("temp-local-only/mptp-parents.fasta"))
 #mptp.tr <- ape::read.tree(file=paste0(here("temp-local-only/mptp-parents.fasta"),".ali.raxml.rba.raxml.bestTree"))
-
 plot(ladderize(midpoint(mptp.tr)),cex=0.001)
 
 # write out rooted tree
 write.tree(ladderize(midpoint(mptp.tr)),here("temp-local-only/mptp-parents.nwk")) 
 
 
-
 # run mptp
-mptp <- function(file) {
-        string.mptp <- paste0("mptp --ml --single --tree_file ",file," --output_file ",file,".mptp.out")
-        #  --minbr 0.0001
-        #system("export PATH=~/Software/mptp/bin:$PATH")
-        system(command=string.mptp,ignore.stdout=FALSE)
-        #x <- x
-    #return(string.mptp)
-}
-
 mptp(file=here("temp-local-only/mptp-parents.nwk"))
 
 
 ## mptp --ml --single --minbr 0.0001 --tree_file ml.haps.tr.nwk --output_file ml.haps.tr.nwk.out
 
+# run func
+mptp.tab <- read_mptp(file=here("temp-local-only/mptp-parents.nwk.mptp.out.txt"),skiplines=6)
+
+# 
+tax.sub.lulu.filtered.red <- tax.sub.lulu.filtered %>% 
+    mutate(source="ASV") %>% 
+    distinct(asvHash,nreads,assigned,parentName,source) %>% 
+    mutate(label=paste(asvHash,assigned,parentName,source,nreads,sep="_"),label=str_replace_all(label," ","_")) %>% 
+    rename(individual=asvHash,assignedSpecies=parentName)
+
+refs.csv.red <- refs.csv %>% 
+    distinct(source,dbid,sciNameValid) %>% 
+    mutate(label=paste(dbid,sciNameValid,source,sep="_"),label=str_replace_all(label," ","_")) %>% 
+    rename(individual=dbid,assignedSpecies=sciNameValid)
+
+# annotate the mptp table
+mptp.tab.annotated <- mptp.tab %>% 
+    left_join(bind_rows(tax.sub.lulu.filtered.red,refs.csv.red)) %>%
+    relocate(species,.after=label)
 
 
+# load up tree
+mptp.tr <- read.tree(here("temp-local-only/mptp-parents.nwk"))
+
+#mptp.tr$tip.label <- pull(mptp.tab.annotated,label)[match(mptp.tr$tip.label,pull(mptp.tab.annotated,individual))]
+
+getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
+set.seed(9)
+cols <- sample(getPalette(n=length(unique(pull(mptp.tab.annotated,species)))))
 
 
+setdiff(mptp.tr$tip.label,pull(mptp.tab.annotated,individual))
+setdiff(pull(mptp.tab.annotated,individual),mptp.tr$tip.label)
 
 
+# plot the tree
+p <- ggtree(mptp.tr, ladderize=TRUE, color="grey20", size=0.8)
+p <- p %<+% select(mptp.tab.annotated,-label) + 
+    geom_tiplab(aes(fill=species),geom="label",size=3) #+
+    #scale_fill_manual(values=cols)
+plot(p)
 
+ggsave(plot=p, filename="../temp/delim_all2.pdf", width=14, height=30, bg="transparent", limitsize=FALSE)
 
-##################################################
-lulu.result.by.asv <- lulu.result$otu_map %>% 
-    rownames_to_column(var="asvHash") %>% 
-    tibble() %>%
-    mutate(assignedName=pull(tax.sub,assignedName)[match(asvHash,pull(tax.sub,asvHash))]) %>%
-    mutate(assigned=pull(tax.sub,assigned)[match(asvHash,pull(tax.sub,asvHash))]) %>%
-    mutate(parentName=pull(tax.sub,assignedName)[match(parent_id,pull(tax.sub,asvHash))]) %>%
-    mutate(parentAssigned=pull(tax.sub,assigned)[match(parent_id,pull(tax.sub,asvHash))]) %>%
-    select(asvHash,assignedName,assigned,total,spread,parent_id,parentName,parentAssigned,curated,rank)
-
-#
-lulu.result.by.asv %>% 
-    left_join(rename(tibble(match.list),asvHash=V1,parent_id=V2)) %>% 
-    filter(assignedName!=parentName) %>% 
-    arrange(parentName,desc(total)) %>% 
-    print(n=Inf)
-
-
-rename(tibble(match.list),asvHash=V1,parent_id=V2)
-
-
-
-tax.sub %>% 
-
-
-
-# load up matchlist
-lulu.matchlist <- read_tsv(here("temp-local-only/lulu-blast-matchlist.tsv"),col_names=c("asv1","asv2","identity"))
-
-# add names back 
-lulu.matchlist.names <- lulu.matchlist %>% 
-    mutate(label1=pull(tax.sub.names,label)[match(asv1,pull(tax.sub,asvHash))],
-        label2=pull(tax.sub.names,label)[match(asv2,pull(tax.sub,asvHash))]) %>%
-    select(-asv1,-asv2) %>%
-    relocate(identity,.after=last_col())
-
-
-lulu.result <- lulu(otutable=data.frame(asv.table.fish,row.names=1),matchlist=lulu.matchlist.names)
-
-match.list %>% filter(V1=="d2fa7148466d7bf1678000c60330e05c" & V2=="ae4318a5d24d1264b3524c5b1642abf0")
-match.list %>% filter(V2=="d2fa7148466d7bf1678000c60330e05c" & V1=="ae4318a5d24d1264b3524c5b1642abf0")
-
-
-c5e48c62f125ef22221d4f236b7b65af
-ae4318a5d24d1264b3524c5b1642abf0
-
-
- %>% filter(V2=="ae4318a5d24d1264b3524c5b1642abf0")
- %>% filter(V2=="cf14519ed8e5fa7af73e942989bce49e")
-str(lulu.result)
-
-lulu.result$curated_table
-lulu.result$curated_count
-lulu.result$otu_map
-lulu.result$curated_otus
-lulu.result$discarded_count
-lulu.result$minimum_match
-lulu.result$minimum_relative_cooccurence
-
-lulu.result$discarded_otus
-
-
-# make an annotated raw table combining assigments
-lulu.result$curated_table %>% rownames_to_column(var="mother") %>% as_tibble() %>% 
-    mutate(size=pull(tax.ass.df,size)[match(mother,pull(tax.ass.df,md5))],
-    bestId=pull(tax.ass.df,bestId)[match(mother,pull(tax.ass.df,md5))],
-    matchLength=pull(tax.ass.df,matchLength)[match(mother,pull(tax.ass.df,md5))],
-    identity=pull(tax.ass.df,identity)[match(mother,pull(tax.ass.df,md5))],
-    blastId=pull(tax.ass.df,blastId)[match(mother,pull(tax.ass.df,md5))]) %>% 
-    select(mother,size,bestId,matchLength,identity,blastId,everything()) %>%
-    arrange(bestId,desc(size)) %>%
-    write_csv(path="results/otu-table-raw-annotated-lulu.csv")
-
-#       1. ‘curated_table’ - a curated OTU table with daughters merged
-#          with their matching parents.
-#
-#       2. ‘curated_count’ - number of curated (parent) OTUs.
-#
-#       3. ‘curated_otus’ - ids of the OTUs that were accepted as valid
-#          OTUs.
-#
-#       4. ‘discarded_count’ - number of discarded (merged with parent)
-#          OTUs.
-#
-#       5. ‘discarded_otus’ - ids of the OTUs that were identified as
-#          errors (daughters) and merged with respective parents.
-#
-#       6. ‘runtime’ - time used by the script.
-#
-#       7. ‘minimum_match’ - the id threshold (minimum match % between
-#          parent and daughter) for evaluating co-occurence (set by
-#          user).
-#
-#       8. ‘minimum_relative_cooccurence’ - minimum ratio of
-#          daughter-occurences explained by co-occurence with parent
-#          (set by user).
-#
-#       9. ‘otu_map’ - information of which daughters were mapped to
-#          which parents.
-#
-#      10. ‘original_table’ - original OTU table.#
-
-
-read_csv(here("assets/local-12s.csv")) %>% distinct(sciNameValid)
