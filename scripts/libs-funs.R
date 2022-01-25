@@ -27,18 +27,19 @@ raxml_ng <- function(file) {
 
 
 # run mptp
-run_mptp <- function(file) {
-        string.mptp <- paste0("mptp --ml --single --tree_file ",file," --output_file ",file,".mptp.out")
-        #  --minbr 0.0001
-        #system("export PATH=~/Software/mptp/bin:$PATH")
-        system(command=string.mptp,ignore.stdout=FALSE)
-        #x <- x
+run_mptp <- function(file,threshold,minbr) {
+    string.mptp <- paste0("mptp --ml --",threshold," --minbr ",minbr," --tree_file ",file," --output_file ",file,".mptp.out")
+    system(command=string.mptp,ignore.stdout=FALSE)
     #return(string.mptp)
 }
 
 
 # FUNCTION TO READ MPTP OUTPUT FILES
-read_mptp <- function(file,skiplines) {
+read_mptp <- function(file) {
+    mptp.scan <- scan(file=file,what="character",sep="\n",quiet=TRUE)
+    skiplines <- grep("Species 1:",mptp.scan)
+    skiplines <- skiplines - 1
+    writeLines(mptp.scan[1:skiplines])
     mptp.raw <- readr::read_delim(file,skip=skiplines,delim=",",col_names="individual",show_col_types=FALSE)
     mptp.tab <- mptp.raw %>% 
         dplyr::mutate(species=ifelse(grepl(":",individual),individual,NA)) %>%
