@@ -1,11 +1,24 @@
 #!/usr/bin/env Rscript
 
 # libs and funs
-source(here("scripts/libs-funs.R"))
+source(here::here("scripts/libs-funs.R"))
+
+
+############ LOAD ASSIGNMENTS ############
+############ LOAD ASSIGNMENTS ############
 
 # load the assigned taxonomy file
 tax.ass <- read_csv(here("meta-fish-pipe/results/taxonomic-assignments.csv"))
 
+# filter the taxonomic assignment table
+tax.sub <- tax.ass %>% 
+    filter(isFish==TRUE & isContaminated==FALSE) %>% 
+    mutate(assignedName=if_else(assigned==FALSE,sintaxSpeciesID,assignedName)) %>%
+    select(asvHash,nreads,isFish,assigned,assignedName,blastSpeciesID,blastPident,nucleotides)
+
+
+############ RUN LULU ASVS ############
+############ RUN LULU ASVS ############
 
 # load master asv table
 asvs.all <- read_csv(file=here("meta-fish-pipe/temp/taxonomic-assignment/asvs-all.csv"))
@@ -38,13 +51,6 @@ asv.tables.events <- asv.tables.df %>% left_join(events.df,by="sampleHash")
 # join with the hash table 
 asvs.by.sample <- asv.tables.events %>% left_join(asvs.all,by=c("asvCode","primerSet","library")) 
 
-# filter the taxonomic assignment table
-tax.sub <- tax.ass %>% 
-    filter(isFish==TRUE & isContaminated==FALSE) %>% 
-    mutate(assignedName=if_else(assigned==FALSE,sintaxSpeciesID,assignedName)) %>%
-    select(asvHash,nreads,isFish,assigned,assignedName,blastSpeciesID,blastPident,nucleotides)# %>% 
-    #mutate(label=paste(assignedName,assigned,asvHash),label=str_replace_all(label," ","_"))
-
 # write out asv table
 asvs.by.sample %>% 
     filter(asvHash %in% pull(tax.sub,asvHash)) %>% 
@@ -52,7 +58,6 @@ asvs.by.sample %>%
     select(sampleHash,nreads,asvHash) %>%
     pivot_wider(names_from=sampleHash,values_from=nreads,values_fill=0) %>% 
     write_csv(here("temp-local-only/asvs-table-lulu.csv"))
-
 
 # write out fasta (need to use hash because max length for blast is 50 chars)
 tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash") %>% write.FASTA(here("temp-local-only/asvs-lulu.fasta"))
@@ -86,9 +91,13 @@ tax.sub.lulu  <- tax.sub %>%
     select(asvHash,nreads,assigned,assignedName,blastSpeciesID,blastPident,parent_id,parentName,parentAssigned,curated,parentIdentity,rank,spread) %>%
     arrange(parentName,desc(nreads))
 
-
-# write
+# write out lulu result
 tax.sub.lulu %>% write_csv(here("temp-local-only/taxonomic-assignments-lulu.csv"))
+
+
+############ LULU RESULTS ############
+############ LULU RESULTS ############
+
 #read back in 
 tax.sub.lulu <- read_csv(here("temp-local-only/taxonomic-assignments-lulu.csv"))
 
@@ -109,7 +118,6 @@ tax.sub.lulu %>%
     #write_csv(here("temp-local-only/taxonomic-assignments-lulu-merged.csv"))
     print(n=Inf)
 
-
 # get assigned names
 lulu.assigned.spp <- tax.sub.lulu %>% 
     filter(curated=="parent" & assigned==TRUE) 
@@ -126,7 +134,7 @@ lulu.unassigned.spp %>%
     distinct(parentName) %>%
     pull(parentName)
 
-# 
+# compare
 setdiff(lulu.unassigned.spp %>%
     distinct(parentName) %>%
     pull(parentName),
@@ -134,87 +142,98 @@ setdiff(lulu.unassigned.spp %>%
     distinct(parentName) %>% 
     pull(parentName))
 
-# pull out unassigned for blast
+# pull out unassigned to blast manually
 unassigned.fas <- tax.sub %>% filter(asvHash %in% pull(lulu.unassigned.spp,asvHash)) %>% mutate(label=paste(asvHash,assignedName,nreads,sep="_"))
 tab2fas(df=unassigned.fas,seqcol="nucleotides",namecol="label") %>% write.FASTA(here("temp-local-only/unassigned-blast.fasta"))
 
 
+############ PREP MPTP ############
+############ PREP MPTP ############
+
 # correct the incorrect merges and filter
 tax.sub.lulu.filtered <- tax.sub.lulu %>% 
     mutate(luluMerge=curated) %>%
-    mutate(luluMerge=if_else(curated=="merged" & parentName!=assignedName & blastPident>parentIdentity,"corrected",luluMerge)) %>% 
+    mutate(luluMerge=if_else(curated=="merged" & parentName!=assignedName & blastPident>parentIdentity,"corrected",luluMerge))
+
+# get distrib of reads for filter ABOVE
+tax.sub.lulu.filtered %>% filter(assigned==FALSE) %>% pull(nreads) %>% quantile(probs=0.9,names=FALSE)
+
+tax.sub.lulu.filtered <- tax.sub.lulu.filtered %>% 
     filter(luluMerge=="parent" | luluMerge=="corrected") %>%
-    filter(nreads>1) %>%
-    filter(blastPident<100)# %>% #assigned!=FALSE | 
+    filter(nreads>350 & spread > 1)
 
-
+# get nucleotides of filtered asvs
 parents <- tax.sub %>% filter(asvHash %in% pull(tax.sub.lulu.filtered,asvHash)) 
 parents.fas <- tab2fas(df=parents ,seqcol="nucleotides",namecol="asvHash")
 
-# load reflib
+# load references
 refs.fas <- read.FASTA(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.fasta"))
 refs.csv <- read_csv(here("meta-fish-pipe/temp/taxonomic-assignment/custom-reference-library.csv"))
 
-# join 
-write.FASTA(c(refs.fas,parents.fas),here("temp-local-only/mptp-parents.fasta"))
+# remove the references that had no assignments made to it
+refs.csv.ass <- refs.csv %>% filter(sciNameValid %in% unique(pull(filter(tax.sub.lulu.filtered,assigned==TRUE),assignedName)))
+refs.fas.red <- refs.fas[names(refs.fas) %in% pull(refs.csv.ass,dbid)]
 
+# join and write out for mPTP
+write.FASTA(c(refs.fas.red,parents.fas),here("temp-local-only/mptp-parents.fasta"))
 
 # run raxml
 mptp.tr <- raxml_ng(file=here("temp-local-only/mptp-parents.fasta"))
 #mptp.tr <- ape::read.tree(file=paste0(here("temp-local-only/mptp-parents.fasta"),".ali.raxml.rba.raxml.bestTree"))
-plot(ladderize(midpoint(mptp.tr)),cex=0.001)
+#plot(ladderize(midpoint(mptp.tr)),cex=0.001)
 
-# write out rooted tree
+# write out rooted tree for mptp
 write.tree(ladderize(midpoint(mptp.tr)),here("temp-local-only/mptp-parents.nwk")) 
 
+# read tree back in
+mptp.tr <- read.tree(here("temp-local-only/mptp-parents.nwk"))
+
+# get distribution of edges
+min.edge.length <- min(mptp.tr$edge.length)
 
 # run mptp
-mptp(file=here("temp-local-only/mptp-parents.nwk"))
+run_mptp(file=here("temp-local-only/mptp-parents.nwk"),threshold="single",minbr=min.edge.length)
 
 
-## mptp --ml --single --minbr 0.0001 --tree_file ml.haps.tr.nwk --output_file ml.haps.tr.nwk.out
+############ PLOT MPTP ############
+############ PLOT MPTP ############
 
-# run func
-mptp.tab <- read_mptp(file=here("temp-local-only/mptp-parents.nwk.mptp.out.txt"),skiplines=6)
+# read in mPTP data
+mptp.tab <- read_mptp(file=here("temp-local-only/mptp-parents.nwk.mptp.out.txt"))
 
-# 
+# make asv table with tip labels
 tax.sub.lulu.filtered.red <- tax.sub.lulu.filtered %>% 
     mutate(source="ASV") %>% 
-    distinct(asvHash,nreads,assigned,parentName,source) %>% 
-    mutate(label=paste(asvHash,assigned,parentName,source,nreads,sep="_"),label=str_replace_all(label," ","_")) %>% 
-    rename(individual=asvHash,assignedSpecies=parentName)
+    distinct(asvHash,nreads,assigned,assignedName,source) %>% 
+    mutate(tiplabel=paste(str_trunc(asvHash,width=10,side="right",ellipsis=""),assignedName,assigned,nreads,sep="_"),tiplabel=str_replace_all(tiplabel," ","_")) %>% 
+    rename(individual=asvHash)
 
+# make references table with tip labels
 refs.csv.red <- refs.csv %>% 
     distinct(source,dbid,sciNameValid) %>% 
-    mutate(label=paste(dbid,sciNameValid,source,sep="_"),label=str_replace_all(label," ","_")) %>% 
-    rename(individual=dbid,assignedSpecies=sciNameValid)
+    mutate(tiplabel=paste(dbid,sciNameValid,sep="_"),tiplabel=str_replace_all(tiplabel," ","_")) %>% 
+    rename(individual=dbid,assignedName=sciNameValid)
 
 # annotate the mptp table
 mptp.tab.annotated <- mptp.tab %>% 
     left_join(bind_rows(tax.sub.lulu.filtered.red,refs.csv.red)) %>%
-    relocate(species,.after=label)
-
+    relocate(species,.after=tiplabel)
 
 # load up tree
 mptp.tr <- read.tree(here("temp-local-only/mptp-parents.nwk"))
 
-#mptp.tr$tip.label <- pull(mptp.tab.annotated,label)[match(mptp.tr$tip.label,pull(mptp.tab.annotated,individual))]
-
+# get come random colours
 getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
-set.seed(9)
+set.seed(42)
 cols <- sample(getPalette(n=length(unique(pull(mptp.tab.annotated,species)))))
 
+# annotate and plot the mptp tree
+p <- ggtree(mptp.tr, ladderize=TRUE, color="grey20") + xlim(0,2)
+p <- p %<+% mptp.tab.annotated
+p <- p + geom_tiplab(aes(fill=species,label=tiplabel),geom="label",label.size=0,label.padding=unit(0.1,"lines")) +
+    geom_tippoint(aes(shape=source,color=source),size=3) +
+    theme(legend.position="none") +
+    scale_fill_manual(values=cols)
 
-setdiff(mptp.tr$tip.label,pull(mptp.tab.annotated,individual))
-setdiff(pull(mptp.tab.annotated,individual),mptp.tr$tip.label)
-
-
-# plot the tree
-p <- ggtree(mptp.tr, ladderize=TRUE, color="grey20", size=0.8)
-p <- p %<+% select(mptp.tab.annotated,-label) + 
-    geom_tiplab(aes(fill=species),geom="label",size=3) #+
-    #scale_fill_manual(values=cols)
-plot(p)
-
-ggsave(plot=p, filename="../temp/delim_all2.pdf", width=14, height=30, bg="transparent", limitsize=FALSE)
-
+# save plot as pdf
+ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=50, height=150, units="cm", bg="transparent", limitsize=FALSE)
