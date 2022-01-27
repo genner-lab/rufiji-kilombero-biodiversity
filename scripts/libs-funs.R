@@ -49,3 +49,19 @@ read_mptp <- function(file) {
         dplyr::relocate(species,.before=individual)
     return(mptp.tab)
 }
+
+
+# run swarm
+run_swarm <- function(file) {
+    string.swarm <- paste0("swarm --threads 4 --differences 1 --fastidious --output-file ",file,".out ",file)
+    system(command=string.swarm,ignore.stdout=FALSE)
+    #return(string.swarm)
+    swarm.tab <- readr::read_table(file=paste0(file,".out"),col_names=FALSE)
+    swarm.tab.flipped <- swarm.tab %>% 
+        dplyr::mutate(swarmCluster=paste0("Swarm",str_pad(seq_along(1:nrow(swarm.tab)),pad="0",width=4))) %>%
+        dplyr::relocate(swarmCluster,.before=everything()) %>%
+        tidyr::pivot_longer(cols=!swarmCluster,names_to="column",values_to="asvHash",values_drop_na=TRUE) %>% 
+        dplyr::select(!column) %>%
+        dplyr::mutate(asvHash=str_replace_all(asvHash,"_[0-9]+",""))
+    return(swarm.tab.flipped)
+}

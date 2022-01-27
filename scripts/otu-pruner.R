@@ -150,6 +150,9 @@ tab2fas(df=unassigned.fas,seqcol="nucleotides",namecol="label") %>% write.FASTA(
 ############ PREP MPTP ############
 ############ PREP MPTP ############
 
+#read back in 
+tax.sub.lulu <- read_csv(here("temp-local-only/taxonomic-assignments-lulu.csv"))
+
 # correct the incorrect merges and filter
 tax.sub.lulu.filtered <- tax.sub.lulu %>% 
     mutate(luluMerge=curated) %>%
@@ -160,7 +163,7 @@ tax.sub.lulu.filtered %>% filter(assigned==FALSE) %>% pull(nreads) %>% quantile(
 
 tax.sub.lulu.filtered <- tax.sub.lulu.filtered %>% 
     filter(luluMerge=="parent" | luluMerge=="corrected") %>%
-    filter(nreads>350 & spread > 1)
+    filter(nreads>20 & spread >= 1)
 
 # get nucleotides of filtered asvs
 parents <- tax.sub %>% filter(asvHash %in% pull(tax.sub.lulu.filtered,asvHash)) 
@@ -175,11 +178,12 @@ refs.csv.ass <- refs.csv %>% filter(sciNameValid %in% unique(pull(filter(tax.sub
 refs.fas.red <- refs.fas[names(refs.fas) %in% pull(refs.csv.ass,dbid)]
 
 # join and write out for mPTP
-write.FASTA(c(refs.fas.red,parents.fas),here("temp-local-only/mptp-parents.fasta"))
+write.FASTA(parents.fas,here("temp-local-only/mptp-parents.fasta"))#c(refs.fas.red,parents.fas)
 
 # run raxml
 mptp.tr <- raxml_ng(file=here("temp-local-only/mptp-parents.fasta"))
-#mptp.tr <- ape::read.tree(file=paste0(here("temp-local-only/mptp-parents.fasta"),".ali.raxml.rba.raxml.bestTree"))
+# raxml-ng --evaluate --msa mptp-parents.fasta.ali --tree mptp-parents.fasta.ali.raxml.rba.raxml.startTree --model TN93+G --seed 42 --redo --threads auto
+# mptp.tr <- ape::read.tree(file=paste0(here("temp-local-only/rax-test/mptp-parents.fasta"),".ali.raxml.bestTree"))
 #plot(ladderize(midpoint(mptp.tr)),cex=0.001)
 
 # write out rooted tree for mptp
@@ -219,21 +223,43 @@ mptp.tab.annotated <- mptp.tab %>%
     left_join(bind_rows(tax.sub.lulu.filtered.red,refs.csv.red)) %>%
     relocate(species,.after=tiplabel)
 
+
+############ RUN SWARM ############
+############ RUN SWARM ############
+
+# write out fasta with abundances
+parents.swarm <- parents %>% mutate(label=paste(asvHash,nreads,sep="_"))
+
+#write out fasta
+swarm.fas <- tab2fas(df=parents.swarm,seqcol="nucleotides",namecol="label")
+write.FASTA(swarm.fas,here("temp-local-only/swarm.fasta"))
+
+# run swarm
+swarm.result <- run_swarm(here("temp-local-only/swarm.fasta"))
+
+# join with mptp table
+mptp.tab.annotated <- mptp.tab.annotated %>% left_join(rename(swarm.result,individual=asvHash))
+
+############ PLOT TREE ############
+############ PLOT TREE ############
+
 # load up tree
 mptp.tr <- read.tree(here("temp-local-only/mptp-parents.nwk"))
 
 # get come random colours
 getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
 set.seed(42)
-cols <- sample(getPalette(n=length(unique(pull(mptp.tab.annotated,species)))))
+cols <- sample(getPalette(n=length(unique(pull(mptp.tab.annotated,swarmCluster)))))
 
 # annotate and plot the mptp tree
-p <- ggtree(mptp.tr, ladderize=TRUE, color="grey20") + xlim(0,2)
+p <- ggtree(mptp.tr, ladderize=TRUE, color="grey20") + xlim(0,3)
 p <- p %<+% mptp.tab.annotated
-p <- p + geom_tiplab(aes(fill=species,label=tiplabel),geom="label",label.size=0,label.padding=unit(0.1,"lines")) +
+p <- p + geom_tiplab(aes(fill=swarmCluster,label=tiplabel),geom="label",label.size=0,label.padding=unit(0.1,"lines")) +
     geom_tippoint(aes(shape=source,color=source),size=3) +
     theme(legend.position="none") +
     scale_fill_manual(values=cols)
 
 # save plot as pdf
-ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=50, height=150, units="cm", bg="transparent", limitsize=FALSE)
+ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=nrow(mptp.tab.annotated)/30, height=nrow(mptp.tab.annotated)/2.5, units="cm", bg="transparent", limitsize=FALSE)
+
+#nrow(mptp.tab.annotated)/2.5
