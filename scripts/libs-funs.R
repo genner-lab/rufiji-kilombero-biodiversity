@@ -8,6 +8,7 @@ library("ape")
 library("phangorn")
 library("RColorBrewer")
 library("ggtree")
+library("parallel")
 source("https://raw.githubusercontent.com/legalLab/protocols-scripts/master/scripts/tab2fas.R")
 # https://github.com/tobiasgf/lulu
 options(width=180)
@@ -20,6 +21,21 @@ raxml_ng <- function(file) {
         string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
         system(command=string.parse,ignore.stdout=FALSE)
         string.search <- paste0("raxml-ng --search --msa ",file,".ali.raxml.rba --tree pars{1} --lh-epsilon 0.1 --seed 42 --redo --threads auto")
+        system(command=string.search,ignore.stdout=FALSE)
+        rax.tr <- ape::read.tree(file=paste0(file,".ali.raxml.rba.raxml.bestTree"))
+    return(rax.tr)
+}
+
+
+# PARSIMONY FUN
+parsimony_ng <- function(file) {
+        string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
+        system(command=string.mafft,ignore.stdout=FALSE)
+        string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
+        system(command=string.parse,ignore.stdout=FALSE)
+        string.start <- paste0("raxml-ng --start --msa ",file,".ali.raxml.rba --tree pars{1} --seed 42 --redo --threads auto")
+        system(command=string.start ,ignore.stdout=FALSE)
+        string.search <- paste0("raxml-ng --evaluate --msa ",file,".ali.raxml.rba --tree ",file,".ali.raxml.rba.raxml.startTree --lh-epsilon 0.1 --seed 42 --redo --threads auto")
         system(command=string.search,ignore.stdout=FALSE)
         rax.tr <- ape::read.tree(file=paste0(file,".ali.raxml.rba.raxml.bestTree"))
     return(rax.tr)
@@ -40,13 +56,15 @@ read_mptp <- function(file) {
     skiplines <- grep("Species 1:",mptp.scan)
     skiplines <- skiplines - 1
     writeLines(mptp.scan[1:skiplines])
-    mptp.raw <- readr::read_delim(file,skip=skiplines,delim=",",col_names="individual",show_col_types=FALSE)
+    mptp.raw <- readr::read_delim(file,skip=skiplines,delim=",",col_names="asvHash",show_col_types=FALSE)
     mptp.tab <- mptp.raw %>% 
-        dplyr::mutate(species=ifelse(grepl(":",individual),individual,NA)) %>%
-        tidyr::fill(species,.direction="down") %>%
-        dplyr::filter(!grepl(":",individual)) %>%
-        dplyr::mutate(species=stringr::str_replace_all(species,":| ","")) %>%
-        dplyr::relocate(species,.before=individual)
+        dplyr::mutate(mptpDelim=ifelse(grepl(":",asvHash),asvHash,NA)) %>%
+        tidyr::fill(mptpDelim,.direction="down") %>%
+        dplyr::filter(!grepl(":",asvHash)) %>%
+        dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,":","")) %>%
+        dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,"Species ","")) %>%
+        dplyr::mutate(mptpDelim=paste0("mptp",str_pad(mptpDelim,pad="0",width=4))) %>%
+        dplyr::relocate(mptpDelim,.before=asvHash)
     return(mptp.tab)
 }
 
