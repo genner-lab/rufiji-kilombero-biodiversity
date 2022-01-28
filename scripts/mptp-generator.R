@@ -65,6 +65,7 @@ seqs <- generate_thresholds(start=1,max=100000)
 
 # iterate mptp over values
 mptp.results.list <- mcmapply(function(x) iterate_mptp(df=tax.sub,threshold=x), x=seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=2)
+#file.remove(list.files(here("temp-local-only"),pattern="mptp",full.names=TRUE))
 
 # join results
 mptp.results <- bind_rows(mptp.results.list)
@@ -72,6 +73,7 @@ mptp.results %>% print(n=Inf)
 
 # plot
 mptp.results %>% ggplot(aes(x=filterThreshold,y=nClust)) + geom_point() + geom_line() + scale_x_continuous(trans="log10") + scale_y_continuous(trans="log10")
+mptp.results %>% write_csv(here("temp-local-only/delim-results.csv"))
 
 
 #####################################################################################################################
