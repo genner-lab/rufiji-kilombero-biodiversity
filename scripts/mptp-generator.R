@@ -10,70 +10,87 @@ source(here::here("scripts/libs-funs.R"))
 ############ LOAD ASSIGNMENT TABLE ############
 
 # load the assigned taxonomy file
-tax.ass <- read_csv(here("meta-fish-pipe/results/taxonomic-assignments.csv"))
+tax.ass <- read_csv(here("meta-fish-pipe/results/taxonomic-assignments.csv"),show_col_types=FALSE)
 
 # filter the taxonomic assignment table
 tax.sub <- tax.ass %>% 
     filter(isFish==TRUE & isContaminated==FALSE) %>% 
     mutate(assignedName=if_else(assigned==FALSE,sintaxSpeciesID,assignedName)) %>%
-    mutate(tiplabel=paste(str_trunc(asvHash,width=10,side="right",ellipsis=""),assignedName,assigned,nreads,sep="_"),tiplabel=str_replace_all(tiplabel," ","_")) %>%
-    select(asvHash,nreads,assigned,assignedName,blastSpeciesID,blastPident,nucleotides,tiplabel)
+    mutate(tipLabel=paste(str_trunc(asvHash,width=10,side="right",ellipsis=""),assignedName,assigned,nreads,sep="_"),tiplabel=str_replace_all(tipLabel," ","_")) %>%
+    mutate(swarmLabel=paste(asvHash,nreads,sep="_")) %>%
+    select(asvHash,nreads,assigned,assignedName,blastSpeciesID,blastPident,nucleotides,tipLabel,swarmLabel)
+
+
+############ ADD SWARM IF REQUIRED ############
+############ ADD SWARM IF REQUIRED ############
+
+#write out fasta
+swarm.fas <- tab2fas(df=tax.sub,seqcol="nucleotides",namecol="swarmLabel")
+write.FASTA(swarm.fas,here("temp-local-only/swarm.fasta"))
+
+# run swarm
+swarm.result <- run_swarm(here("temp-local-only/swarm.fasta"))
+
+# join with mptp table
+tax.sub <- tax.sub %>% left_join(swarm.result)
+
+# filter by swarm cluster with greatest number seqs
+tax.sub <- tax.sub %>% 
+    group_by(swarmCluster) %>% 
+    slice_max(order_by=nreads,n=1,with_ties=FALSE) %>% 
+    ungroup()
 
 
 ############ READ ABUNDANCE FILTER ############
 ############ READ ABUNDANCE FILTER ############
 
-
-# run mptp
-iterate_mptp <- function(df,threshold) {
-    #file.remove(list.files(here("temp-local-only"),pattern="mptp",full.names=TRUE))
-    tax.sub.filtered <- df %>% 
-        filter(nreads >= threshold)
-    tax.sub.filtered.fas <- tab2fas(df=tax.sub.filtered ,seqcol="nucleotides",namecol="asvHash")
-    base.name <- paste0("temp-local-only/mptp.",str_pad(as.character(threshold),pad="0",width=4),".fasta")
-    write.FASTA(tax.sub.filtered.fas,here(base.name))
-    mptp.tr <- parsimony_ng(file=here(base.name))
-    write.tree(ladderize(midpoint(mptp.tr)),here(paste0(base.name,".nwk"))) 
-    mptp.tr <- read.tree(here(paste0(base.name,".nwk")))
-    min.edge.length <- min(mptp.tr$edge.length)
-    run_mptp(file=here(paste0(base.name,".nwk")),threshold="single",minbr=min.edge.length)
-    mptp.tab <- read_mptp(file=here(paste0(base.name,".nwk.mptp.out.txt")))
-    mptp.species <- mptp.tab %>% 
-        summarise(nClust=length(unique(mptpDelim))) %>% 
-        mutate(filterThreshold=threshold) %>% 
-        relocate(filterThreshold,.before=nClust)
-    #file.remove(list.files(here("temp-local-only"),pattern="mptp",full.names=TRUE))
-    return(mptp.species)
-}
-
-
-# FUNCTION TO GENERATE FILTER THRESHOLD VALUES
-generate_thresholds <- function(start,max) {
-    i <- start 
-    res <- NULL
-    while(i < max) { 
-        i <- i*1.5
-        res <- c(res,i)
-    }
-    res <- ceiling(c(start,res))
-    return(res)
-}
 
 # generate distrib of values
 seqs <- generate_thresholds(start=1,max=100000)
 
-
 # iterate mptp over values
-mptp.results.list <- mcmapply(function(x) iterate_mptp(df=tax.sub,threshold=x), x=seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=2)
+mptp.results.list <- mcmapply(function(x) iterate_mptp(df=tax.sub,filter=x,threshold="single",epsilon=10), x=seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=2)
 #file.remove(list.files(here("temp-local-only"),pattern="mptp",full.names=TRUE))
 
 # join results
 mptp.results <- bind_rows(mptp.results.list)
 mptp.results %>% print(n=Inf)
 
+# writeout
+mptp.results %>% 
+    mutate(method="single-njs-swarm") %>%
+    relocate(method,.before=filterThreshold) %>% 
+    write_csv(here("temp-local-only/delim-results-temp.csv"))
+
 # plot
-mptp.results %>% ggplot(aes(x=filterThreshold,y=nClust)) + geom_point() + geom_line() + scale_x_continuous(trans="log10") + scale_y_continuous(trans="log10")
-mptp.results %>% write_csv(here("temp-local-only/delim-results.csv"))
+mptp.table <- read_csv(here("temp-local-only/delim-results.csv"),show_col_types=FALSE)
+mptp.table %>% 
+    ggplot(aes(x=filterThreshold,y=nClust,color=method)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_continuous(trans="log10",labels=scales::comma_format(accuracy=1),n.breaks=6) +
+    geom_hline(yintercept=68,lty=2) +
+    scale_y_continuous(labels=scales::comma,breaks=seq(0,2000,200)) +
+    ggthemes::theme_clean()
+    #
+    #scale_y_continuous(trans="log10",labels=scales::comma,breaks=seq(0,2000,100))
+    #scale_y_continuous(limits=c(0,100),breaks=seq(0,100,by=10))
+    #scale_y_continuous(breaks=seq(0,1900,by=100))
+
+# get n spp (= 68)
+#tax.ass %>% 
+#    filter(isFish==TRUE & isContaminated==FALSE & assigned==TRUE) %>%
+#    distinct(assignedName)
+
+
+# run raxml random
+tax.sub.filtered.fas <- tab2fas(df=tax.sub ,seqcol="nucleotides",namecol="asvHash")
+base.name <- paste0("temp-local-only/mptp.",str_pad(as.character(1),pad="0",width=4),".fasta")
+write.FASTA(tax.sub.filtered.fas,here(base.name))
+# run
+rand.tr <- raxml_random(file=here(base.name),epsilon=10)
+
+
 
 
 #####################################################################################################################

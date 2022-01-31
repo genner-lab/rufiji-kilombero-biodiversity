@@ -14,13 +14,35 @@ source("https://raw.githubusercontent.com/legalLab/protocols-scripts/master/scri
 options(width=180)
 
 
+# NJ TREE FUN
+nj_og <- function(file) {
+        string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
+        system(command=string.mafft,ignore.stdout=FALSE)
+        ali <- ape::read.FASTA(paste0(file,".ali"))
+        rax.tr <- ape::njs(ape::dist.dna(ali,model="TN93",gamma=0.5,pairwise.deletion=TRUE))
+    return(rax.tr)
+}
+
+
 # NEW RAXML-NG FUN
-raxml_ng <- function(file) {
+raxml_ng <- function(file,epsilon) {
         string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
         system(command=string.mafft,ignore.stdout=FALSE)
         string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
         system(command=string.parse,ignore.stdout=FALSE)
-        string.search <- paste0("raxml-ng --search --msa ",file,".ali.raxml.rba --tree pars{1} --lh-epsilon 0.1 --seed 42 --redo --threads auto")
+        string.search <- paste0("raxml-ng --search --msa ",file,".ali.raxml.rba --tree pars{1} --lh-epsilon ",epsilon," --seed 42 --redo --threads auto")
+        system(command=string.search,ignore.stdout=FALSE)
+        rax.tr <- ape::read.tree(file=paste0(file,".ali.raxml.rba.raxml.bestTree"))
+    return(rax.tr)
+}
+
+# RAXML RANDOM 100
+raxml_random <- function(file,epsilon) {
+        string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
+        system(command=string.mafft,ignore.stdout=FALSE)
+        string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
+        system(command=string.parse,ignore.stdout=FALSE)
+        string.search <- paste0("raxml-ng --search --msa ",file,".ali.raxml.rba --tree rand{100} --lh-epsilon ",epsilon," --redo --threads auto")
         system(command=string.search,ignore.stdout=FALSE)
         rax.tr <- ape::read.tree(file=paste0(file,".ali.raxml.rba.raxml.bestTree"))
     return(rax.tr)
@@ -82,4 +104,42 @@ run_swarm <- function(file) {
         dplyr::select(!column) %>%
         dplyr::mutate(asvHash=str_replace_all(asvHash,"_[0-9]+",""))
     return(swarm.tab.flipped)
+}
+
+
+# run mptp
+iterate_mptp <- function(df,filter,threshold,epsilon) {
+    #file.remove(list.files(here("temp-local-only"),pattern="mptp",full.names=TRUE))
+    tax.sub.filtered <- df %>% 
+        filter(nreads >= filter)
+    tax.sub.filtered.fas <- tab2fas(df=tax.sub.filtered ,seqcol="nucleotides",namecol="asvHash")
+    base.name <- paste0("temp-local-only/mptp.",str_pad(as.character(filter),pad="0",width=4),".fasta")
+    write.FASTA(tax.sub.filtered.fas,here(base.name))
+    #mptp.tr <- parsimony_ng(file=here(base.name))
+    #mptp.tr <- raxml_ng(file=here(base.name),epsilon=epsilon)
+    mptp.tr <- nj_og(file=here(base.name))
+    write.tree(ladderize(midpoint(mptp.tr)),here(paste0(base.name,".nwk"))) 
+    mptp.tr <- read.tree(here(paste0(base.name,".nwk")))
+    min.edge.length <- min(mptp.tr$edge.length)
+    run_mptp(file=here(paste0(base.name,".nwk")),threshold=threshold,minbr=min.edge.length)
+    mptp.tab <- read_mptp(file=here(paste0(base.name,".nwk.mptp.out.txt")))
+    mptp.species <- mptp.tab %>% 
+        summarise(nClust=length(unique(mptpDelim))) %>% 
+        mutate(filterThreshold=filter) %>% 
+        relocate(filterThreshold,.before=nClust)
+    #file.remove(list.files(here("temp-local-only"),pattern="mptp",full.names=TRUE))
+    return(mptp.species)
+}
+
+
+# FUNCTION TO GENERATE FILTER THRESHOLD VALUES
+generate_thresholds <- function(start,max) {
+    i <- start 
+    res <- NULL
+    while(i < max) { 
+        i <- i*1.5
+        res <- c(res,i)
+    }
+    res <- ceiling(c(start,res))
+    return(res)
 }
