@@ -160,10 +160,10 @@ generate_thresholds <- function(start,max) {
     i <- start 
     res <- NULL
     while(i < max) { 
-        i <- i*1.5
+        i <- i*1.25
         res <- c(res,i)
     }
-    res <- ceiling(c(start,res))
+    res <- unique(ceiling(c(start,res)))
     return(res)
 }
 
@@ -179,12 +179,13 @@ drop_tips <- function(df,filt,tree) {
 
 # RUN MPTP IN PARALLEL OVER A LIST OF TREES
 mptp_parallel <- function(df,base.name,tr,num,threshold,filt) {
-    tr.lad <- ladderize(midpoint(tr))
+    tr.lad <- midpoint(unroot(tr))
     trs.seqs <- mcmapply(function(x) drop_tips(df=df,filt=x,tree=tr.lad), x=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     names(trs.seqs) <- paste0("filt",str_pad(as.character(filt),pad="0",width=6))
-    base.name.rep <- here(paste0(base.name,".tr",str_pad(as.character(num),pad="0",width=3),".",names(trs.seqs),".nwk"))
+    base.name.rep <- paste0(base.name,".tr",str_pad(as.character(num),pad="0",width=3),".",names(trs.seqs),".nwk")
     mcmapply(function(x,y) write.tree(phy=x,file=y), x=trs.seqs, y=base.name.rep, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    min.edge.length <- mcmapply(function(x) min(x$edge.length), x=trs.seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    #min.edge.length <- mcmapply(function(x) min(x$edge.length), x=trs.seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    min.edge.length <- 1e-07
     mcmapply(function(x,y) run_mptp(file=x,threshold=threshold,minbr=y), x=base.name.rep, y=min.edge.length, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.list <- mcmapply(function(x,y) parse_mptp(file=x,filt=y,num=num), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.joined <- bind_rows(mptp.tab.list)

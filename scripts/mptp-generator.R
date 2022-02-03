@@ -56,72 +56,144 @@ tax.sub <- tax.sub %>% mutate(
 tax.sub <- tax.sub %>% filter(include==TRUE)
 
 
-# check
-#tax.sub %>% filter(include==FALSE) %>% print(n=Inf)
+############ RUN RAXML FOR 100 RANDOM STARTING TREES ############
+############ RUN RAXML FOR 100 RANDOM STARTING TREES ############
 
-# load up tree
-#mptp.tr <- midpoint(read.tree(here("temp-local-only/mptp.0001.fasta.ali.raxml.rba.raxml.bestTree")))
-
-# get come random colours
-#getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
-#set.seed(42)
-#cols <- sample(getPalette(n=length(unique(pull(tax.sub,include)))))
-
-# annotate and plot the mptp tree
-#p <- ggtree(mptp.tr, ladderize=TRUE, color="grey20") + xlim(0,4)
-#p <- p %<+% tax.sub
-#p <- p + geom_tiplab(aes(fill=include,label=tipLabel),geom="label",label.size=0,label.padding=unit(0.1,"lines")) +
-#        theme(legend.position="none") +
-#    scale_fill_manual(values=cols)
-
-# save plot as pdf
-#ggsave(plot=p, filename=here("temp-local-only/length-tree.pdf"), width=nrow(tax.sub)/30, height=nrow(tax.sub)/2.5, units="cm", bg="transparent", limitsize=FALSE)
-
-
-
-############ ITERATE MPTP OVER 100 RANDOM TREES FOR 30 FILTERING POINTS ############
-############ ITERATE MPTP OVER 100 RANDOM TREES FOR 30 FILTERING POINTS ############
-
-# generate distrib of values
-seqs <- generate_thresholds(start=1,max=100000)
+# make a basename
+base.name <- here("temp-local-only/mptp.fasta")
 
 # write out fasta for alignment
-tax.sub.filtered.fas <- tab2fas(df=tax.sub ,seqcol="nucleotides",namecol="asvHash")
-base.name <- paste0("temp-local-only/mptp.fasta")
-write.FASTA(tax.sub.filtered.fas,here(base.name))
+tax.sub.filtered.fas <- tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash")
+write.FASTA(tax.sub.filtered.fas,base.name)
 
 # run raxml over 100 random starting trees
-rand.tr <- raxml_random(file=here(base.name),epsilon=10)
+rand.tr <- raxml_random(file=base.name,epsilon=10)
+
+
+############ ITERATE MPTP ############
+############ ITERATE MPTP ############
+
+# make a basename
+base.name <- here("temp-local-only/mptp.fasta")
+
+# get max cutoff at 0.01% of total reads
+tot.reads <-  ceiling(sum(pull(tax.sub,nreads))*0.0001)
+
+# generate distrib of values
+seqs <- generate_thresholds(start=1,max=tot.reads)
 
 # load up 100 ml trees
-trs <- read.tree(paste0(here(base.name),".ali.raxml.rba.raxml.mlTrees"))
+trs <- read.tree(paste0(base.name,".ali.raxml.rba.raxml.mlTrees"))
 
 # run mptp in parallel over a list of trees
 mptp.tab.all.trees <- mcmapply(function(x,y) mptp_parallel(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=seqs), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
-#file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
+file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
 
 # join into dataframe
 mptp.combined <- bind_rows(mptp.tab.all.trees)
 
 # save dataframe
 mptp.combined %>% write_csv(here("temp-local-only/delim-results.csv"))
-mptp.combined %>% write_csv(here("temp/results/delim-results.csv"))
+#mptp.combined %>% write_csv(here("temp/results/delim-results.csv"))
 
 # read back in if needed
 mptp.combined <- read_csv(here("temp-local-only/delim-results.csv"),show_col_types=FALSE)
 
-# plot
+# get density
+adj <- 1
+d <- density(pull(mptp.combined,nClust),adjust=adj)
+max.d <- ceiling(d$x[which.max(d$y)])
+print(max.d)
+
+# plot density
+mptp.combined %>% 
+    ggplot(aes(x=nClust)) + 
+    geom_density(adjust=adj) + 
+    geom_vline(xintercept=max.d,color="firebrick1",linetype=2) +
+    scale_x_continuous(labels=scales::comma_format(accuracy=1),n.breaks=12) +
+    ggthemes::theme_clean()
+
+# plot gam 
 mptp.combined %>% 
     ggplot(aes(x=filterThreshold,y=nClust)) + 
     geom_boxplot(aes(group=filterThreshold),outlier.shape=NA) +
     geom_jitter(height=0,alpha=0.1) + 
-    geom_smooth(method=mgcv::gam,formula=y~s(x,bs="cs",k=4),alpha=0) +
+    geom_smooth(method=mgcv::gam,formula=y~s(x,bs="cs",k=7),alpha=0,color="seagreen") +
     scale_x_continuous(trans="log10",labels=scales::comma_format(accuracy=1),n.breaks=6) +
-    geom_hline(yintercept=68,lty=2) +
+    geom_hline(yintercept=68,lty=2,color="cornflowerblue") +
+    geom_hline(yintercept=max.d,lty=2,color="firebrick1") +
+    #geom_hline(yintercept=median(pull(mptp.combined,nClust)),lty=2,color="forestgreen") +
     scale_y_continuous(labels=scales::comma_format(accuracy=1),n.breaks=12) + 
-    #scale_y_continuous(trans="log10",labels=scales::comma_format(accuracy=1),n.breaks=8) + 
+    #scale_y_continuous(trans="log10",labels=scales::comma_format(accuracy=1),n.breaks=12) + 
     ggthemes::theme_clean()
     #
+
+
+############ PLOT A REPRESENTATIVE TREE ############
+############ PLOT A REPRESENTATIVE TREE ############
+
+#mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% median()
+est.threshold <- mptp.combined %>% filter(nClust == max.d) %>% pull(filterThreshold) %>% median()
+print(est.threshold)
+
+# filter df at optimised threshold
+tax.sub.opt <- tax.sub %>% filter(nreads>est.threshold)
+
+# subset and write fasta
+tax.sub.opt.fas <- tab2fas(df=tax.sub.opt,seqcol="nucleotides",namecol="asvHash")
+write.FASTA(tax.sub.opt.fas,here("temp-local-only/opt.fasta"))
+
+# run raxml
+mptp.opt.tr <- raxml_ng(file=here("temp-local-only/opt.fasta"),epsilon=0.1)
+mptp.opt.tr <- phangorn::midpoint(unroot(mptp.opt.tr))
+
+# or load prev best ml tr
+mptp.opt.tr <- read.tree(file=here("temp-local-only/mptp.fasta.ali.raxml.rba.raxml.bestTree"))
+mptp.opt.tr <- phangorn::midpoint(unroot(mptp.opt.tr))
+mptp.opt.tr <- drop_tips(df=tax.sub,filt=est.threshold,tree=mptp.opt.tr)
+
+
+#min.edge.length <- min(mptp.opt.tr$edge.length)
+min.edge.length <- 1e-07
+
+# write out for mptp
+write.tree(mptp.opt.tr,here("temp-local-only/opt.fasta.ali.raxml.rba.raxml.bestTree.nwk"))
+
+# run mptp and read in
+run_mptp(file=here("temp-local-only/opt.fasta.ali.raxml.rba.raxml.bestTree.nwk"),threshold="single",minbr=min.edge.length)
+mptp.tab <- read_mptp(file=here("temp-local-only/opt.fasta.ali.raxml.rba.raxml.bestTree.nwk.mptp.out.txt"))
+file.remove(list.files(here("temp-local-only"),pattern="opt.",full.names=TRUE))
+
+# join with df
+mptp.tab.annotated <- tax.sub.opt %>% left_join(mptp.tab)
+mptp.tab.annotated %>% distinct(mptpDelim) %>% pull() %>% length()
+
+# get come random colours
+getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
+set.seed(42)
+cols <- sample(getPalette(n=length(unique(pull(mptp.tab.annotated,mptpDelim)))))
+
+# annotate and plot the mptp tree
+p <- ggtree(mptp.opt.tr, ladderize=TRUE, color="grey20") + xlim(0,3)
+p <- p %<+% mptp.tab.annotated
+p <- p + geom_tiplab(aes(fill=mptpDelim,label=tipLabel),geom="label",label.size=0,label.padding=unit(0.1,"lines")) +
+    theme(legend.position="none") +
+    scale_fill_manual(values=cols)
+
+# save plot as pdf
+ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=nrow(mptp.tab.annotated)/5, height=nrow(mptp.tab.annotated)/2.5, units="cm", bg="transparent", limitsize=FALSE)
+
+
+############ VSEARCH 3% CLUSTERING ############
+############ VSEARCH 3% CLUSTERING ############
+
+tax.sub.vsearch <- tax.sub %>% mutate(vsearchLabel=paste(asvHash,nreads,sep=";size="))
+tax.sub.vsearch.fas <- tab2fas(df=tax.sub.vsearch,seqcol="nucleotides",namecol="vsearchLabel")
+write.FASTA(tax.sub.vsearch.fas,here("temp-local-only/vsearch.fasta"))
+# run in terminal
+#vsearch --cluster_size vsearch.fasta --centroids vsearch.fasta.out --id 0.97 --sizein --sizeout
+    #Clusters: 843 Size min 1, max 24, avg 1.5
+    #Singletons: 685, 55.6% of seqs, 81.3% of clusters
 
 
 ############ MESSING WITH GAMS ############
