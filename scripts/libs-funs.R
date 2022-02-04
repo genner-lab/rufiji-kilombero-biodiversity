@@ -9,6 +9,7 @@ library("phangorn")
 library("RColorBrewer")
 library("ggtree")
 library("parallel")
+library("openssl")
 source("https://raw.githubusercontent.com/legalLab/protocols-scripts/master/scripts/tab2fas.R")
 # https://github.com/tobiasgf/lulu
 options(width=180)
@@ -188,6 +189,50 @@ mptp_parallel <- function(df,base.name,tr,num,threshold,filt) {
     min.edge.length <- 1e-07
     mcmapply(function(x,y) run_mptp(file=x,threshold=threshold,minbr=y), x=base.name.rep, y=min.edge.length, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.list <- mcmapply(function(x,y) parse_mptp(file=x,filt=y,num=num), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    mptp.tab.joined <- bind_rows(mptp.tab.list)
+    return(mptp.tab.joined)
+}
+
+
+
+
+################ TEST FUNS
+
+# PARSE MPTP
+parse_mptp2 <- function(file,filt,num) {
+    mptp.scan <- scan(file=file,what="character",sep="\n",quiet=TRUE)
+    skiplines <- grep("Species 1:",mptp.scan)
+    skiplines <- skiplines - 1
+    writeLines(mptp.scan[1:skiplines])
+    mptp.raw <- readr::read_delim(file,skip=skiplines,delim=",",col_names="asvHash",show_col_types=FALSE)
+    mptp.tab <- mptp.raw %>% 
+        dplyr::mutate(mptpDelim=ifelse(grepl(":",asvHash),asvHash,NA)) %>%
+        tidyr::fill(mptpDelim,.direction="down") %>%
+        dplyr::filter(!grepl(":",asvHash)) %>%
+        dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,":","")) %>%
+        dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,"Species ","")) %>%
+        dplyr::mutate(mptpDelim=paste0("mptp",str_pad(mptpDelim,pad="0",width=4))) %>%
+        dplyr::relocate(mptpDelim,.before=asvHash)
+    #
+    mptp.tab <- mptp.tab %>% mutate(replicate=num)
+    #mptp.species <- mptp.tab %>% 
+    #    summarise(nClust=length(unique(mptpDelim))) %>% 
+    #    mutate(filterThreshold=filt,replicate=num) %>% 
+    #    relocate(filterThreshold,.before=nClust)
+    return(mptp.tab)
+}
+
+# RUN MPTP IN PARALLEL OVER A LIST OF TREES
+mptp_parallel2 <- function(df,base.name,tr,num,threshold,filt) {
+    tr.lad <- midpoint(unroot(tr))
+    trs.seqs <- mcmapply(function(x) drop_tips(df=df,filt=x,tree=tr.lad), x=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    names(trs.seqs) <- paste0("filt",str_pad(as.character(filt),pad="0",width=6))
+    base.name.rep <- paste0(base.name,".tr",str_pad(as.character(num),pad="0",width=3),".",names(trs.seqs),".nwk")
+    mcmapply(function(x,y) write.tree(phy=x,file=y), x=trs.seqs, y=base.name.rep, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    #min.edge.length <- mcmapply(function(x) min(x$edge.length), x=trs.seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    min.edge.length <- 1e-07
+    mcmapply(function(x,y) run_mptp(file=x,threshold=threshold,minbr=y), x=base.name.rep, y=min.edge.length, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    mptp.tab.list <- mcmapply(function(x,y) parse_mptp2(file=x,filt=y,num=num), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.joined <- bind_rows(mptp.tab.list)
     return(mptp.tab.joined)
 }

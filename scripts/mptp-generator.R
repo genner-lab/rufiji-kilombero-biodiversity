@@ -67,7 +67,7 @@ tax.sub.filtered.fas <- tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash
 write.FASTA(tax.sub.filtered.fas,base.name)
 
 # run raxml over 100 random starting trees
-rand.tr <- raxml_random(file=base.name,epsilon=10)
+rand.tr <- raxml_random(file=base.name,epsilon=0.1)
 
 
 ############ ITERATE MPTP ############
@@ -94,7 +94,10 @@ mptp.combined <- bind_rows(mptp.tab.all.trees)
 
 # save dataframe
 mptp.combined %>% write_csv(here("temp-local-only/delim-results.csv"))
-#mptp.combined %>% write_csv(here("temp/results/delim-results.csv"))
+mptp.combined %>% write_csv(here("temp/results/delim-results.csv"))
+
+# print
+writeLines("mPTP analyses complete")
 
 # read back in if needed
 mptp.combined <- read_csv(here("temp-local-only/delim-results.csv"),show_col_types=FALSE)
@@ -132,7 +135,7 @@ mptp.combined %>%
 ############ PLOT A REPRESENTATIVE TREE ############
 ############ PLOT A REPRESENTATIVE TREE ############
 
-#mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% median()
+#est.threshold <- mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% median()
 est.threshold <- mptp.combined %>% filter(nClust == max.d) %>% pull(filterThreshold) %>% median()
 print(est.threshold)
 
@@ -182,6 +185,70 @@ p <- p + geom_tiplab(aes(fill=mptpDelim,label=tipLabel),geom="label",label.size=
 
 # save plot as pdf
 ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=nrow(mptp.tab.annotated)/5, height=nrow(mptp.tab.annotated)/2.5, units="cm", bg="transparent", limitsize=FALSE)
+
+
+############ RUN OVER ALL TREES ABOVE THRESH ############
+############ RUN OVER ALL TREES ABOVE THRESH ############
+
+
+# load up 100 ml trees
+trs <- read.tree(paste0(base.name,".ali.raxml.rba.raxml.mlTrees"))
+
+# run mptp in parallel over a list of trees
+mptp.tab.filter.trees <- mcmapply(function(x,y) mptp_parallel2(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=est.threshold), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
+file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
+
+# join into dataframe
+mptp.combined <- bind_rows(mptp.tab.filter.trees)
+
+mptp.sets <- mptp.combined %>% 
+    group_by(replicate,mptpDelim) %>% 
+    arrange(asvHash,.by_group=TRUE) %>% 
+    mutate(set=paste(asvHash,collapse=",")) %>% 
+    ungroup() %>%
+    mutate(setHash=md5(set))
+
+
+mptp.sets.freq <- mptp.sets %>% 
+    distinct(replicate,setHash) %>% 
+    count(setHash) %>% 
+    rename(setFreq=n) 
+
+mptp.sets.joined <- mptp.sets %>% 
+    left_join(mptp.sets.freq) %>% 
+    distinct(asvHash,setHash,setFreq) %>% 
+    arrange(desc(setFreq)) %>% 
+    group_by(asvHash) %>%
+    mutate(asvFreq=length(unique(setHash))) %>%
+    ungroup() #%>%
+    #arrange(asvFreq) #%>%
+    #relocate(asvFreq,.before=setHash) %>%
+    #print(n=Inf)
+
+# reduce the assignment df
+tax.sub.red <- tax.sub %>% select(asvHash,nreads,assigned,assignedName,tipLabel)
+
+# join with mptp sets and annotate
+mptp.sets.ann <- mptp.sets.joined %>% left_join(tax.sub.red)
+mptp.sets.ann %>% arrange(assigned,desc(setFreq)) %>% print(n=Inf)
+mptp.sets.ann %>% write_csv(here("temp-local-only/delimitation-probabilities.csv"))
+
+
+############ MAKE A TREE SET ############
+############ MAKE A TREE SET ############
+
+tree.list <- mapply(function(x) read.tree(x), x=list.files(here("temp-local-only"),pattern=".nwk$",full.names=TRUE),USE.NAMES=FALSE,SIMPLIFY=FALSE)
+c(tree.list)
+
+
+cat *.nwk > all.trees.nwk
+
+trees.nwk <- read.tree(here("temp-local-only/all.trees.nwk"))
+write.nexus(trees.nwk,file= "temp-local-only/all.trees.nwk.nex",translate=FALSE)
+
+treeannotator -heights ca -burninTrees 0 all.trees.nwk.nex all.trees.nwk.nex.mcc.tre
+
+all.trees.nex <- read.nexus(here("temp-local-only/all.trees.nwk.nex.mcc.tre"))
 
 
 ############ VSEARCH 3% CLUSTERING ############
