@@ -20,6 +20,8 @@ tax.sub <- tax.ass %>%
     mutate(swarmLabel=paste(asvHash,nreads,sep="_")) %>%
     select(asvHash,nreads,assigned,assignedName,blastSpeciesID,blastPident,nucleotides,tipLabel,swarmLabel)
 
+# make a basename
+base.name <- here("temp-local-only/mptp.fasta")
 
 ############ FILTER BY SWARM IF REQUIRED ############
 ############ FILTER BY SWARM IF REQUIRED ############
@@ -59,9 +61,6 @@ tax.sub <- tax.sub %>% filter(include==TRUE)
 ############ RUN RAXML FOR 100 RANDOM STARTING TREES ############
 ############ RUN RAXML FOR 100 RANDOM STARTING TREES ############
 
-# make a basename
-base.name <- here("temp-local-only/mptp.fasta")
-
 # write out fasta for alignment
 tax.sub.filtered.fas <- tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash")
 write.FASTA(tax.sub.filtered.fas,base.name)
@@ -72,9 +71,6 @@ rand.tr <- raxml_random(file=base.name,epsilon=0.1)
 
 ############ ITERATE MPTP ############
 ############ ITERATE MPTP ############
-
-# make a basename
-base.name <- here("temp-local-only/mptp.fasta")
 
 # get max cutoff at 0.01% of total reads
 tot.reads <-  ceiling(sum(pull(tax.sub,nreads))*0.0001)
@@ -108,13 +104,11 @@ d <- density(pull(mptp.combined,nClust),adjust=adj)
 max.d <- ceiling(d$x[which.max(d$y)])
 print(max.d)
 
-# plot density
-mptp.combined %>% 
-    ggplot(aes(x=nClust)) + 
-    geom_density(adjust=adj) + 
-    geom_vline(xintercept=max.d,color="firebrick1",linetype=2) +
-    scale_x_continuous(labels=scales::comma_format(accuracy=1),n.breaks=12) +
-    ggthemes::theme_clean()
+# get threshold estimate
+#est.threshold <- mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% median()
+est.threshold <- mptp.combined %>% filter(nClust == max.d) %>% pull(filterThreshold) %>% median()
+print(est.threshold)
+
 
 # plot gam 
 mptp.combined %>% 
@@ -131,76 +125,28 @@ mptp.combined %>%
     ggthemes::theme_clean()
     #
 
-
-############ PLOT A REPRESENTATIVE TREE ############
-############ PLOT A REPRESENTATIVE TREE ############
-
-#est.threshold <- mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% median()
-est.threshold <- mptp.combined %>% filter(nClust == max.d) %>% pull(filterThreshold) %>% median()
-print(est.threshold)
-
-# filter df at optimised threshold
-tax.sub.opt <- tax.sub %>% filter(nreads>est.threshold)
-
-# subset and write fasta
-tax.sub.opt.fas <- tab2fas(df=tax.sub.opt,seqcol="nucleotides",namecol="asvHash")
-write.FASTA(tax.sub.opt.fas,here("temp-local-only/opt.fasta"))
-
-# run raxml
-mptp.opt.tr <- raxml_ng(file=here("temp-local-only/opt.fasta"),epsilon=0.1)
-mptp.opt.tr <- phangorn::midpoint(unroot(mptp.opt.tr))
-
-# or load prev best ml tr
-mptp.opt.tr <- read.tree(file=here("temp-local-only/mptp.fasta.ali.raxml.rba.raxml.bestTree"))
-mptp.opt.tr <- phangorn::midpoint(unroot(mptp.opt.tr))
-mptp.opt.tr <- drop_tips(df=tax.sub,filt=est.threshold,tree=mptp.opt.tr)
+# plot density
+mptp.combined %>% 
+    ggplot(aes(x=nClust)) + 
+    geom_density(adjust=adj) + 
+    geom_vline(xintercept=max.d,color="firebrick1",linetype=2) +
+    scale_x_continuous(labels=scales::comma_format(accuracy=1),n.breaks=12) +
+    ggthemes::theme_clean()
 
 
-#min.edge.length <- min(mptp.opt.tr$edge.length)
-min.edge.length <- 1e-07
-
-# write out for mptp
-write.tree(mptp.opt.tr,here("temp-local-only/opt.fasta.ali.raxml.rba.raxml.bestTree.nwk"))
-
-# run mptp and read in
-run_mptp(file=here("temp-local-only/opt.fasta.ali.raxml.rba.raxml.bestTree.nwk"),threshold="single",minbr=min.edge.length)
-mptp.tab <- read_mptp(file=here("temp-local-only/opt.fasta.ali.raxml.rba.raxml.bestTree.nwk.mptp.out.txt"))
-file.remove(list.files(here("temp-local-only"),pattern="opt.",full.names=TRUE))
-
-# join with df
-mptp.tab.annotated <- tax.sub.opt %>% left_join(mptp.tab)
-mptp.tab.annotated %>% distinct(mptpDelim) %>% pull() %>% length()
-
-# get come random colours
-getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
-set.seed(42)
-cols <- sample(getPalette(n=length(unique(pull(mptp.tab.annotated,mptpDelim)))))
-
-# annotate and plot the mptp tree
-p <- ggtree(mptp.opt.tr, ladderize=TRUE, color="grey20") + xlim(0,3)
-p <- p %<+% mptp.tab.annotated
-p <- p + geom_tiplab(aes(fill=mptpDelim,label=tipLabel),geom="label",label.size=0,label.padding=unit(0.1,"lines")) +
-    theme(legend.position="none") +
-    scale_fill_manual(values=cols)
-
-# save plot as pdf
-ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=nrow(mptp.tab.annotated)/5, height=nrow(mptp.tab.annotated)/2.5, units="cm", bg="transparent", limitsize=FALSE)
-
-
-############ RUN OVER ALL TREES ABOVE THRESH ############
-############ RUN OVER ALL TREES ABOVE THRESH ############
-
+############ GET FREQUENCY OF DELIMITATIONS ############
+############ GET FREQUENCY OF DELIMITATIONS ############
 
 # load up 100 ml trees
 trs <- read.tree(paste0(base.name,".ali.raxml.rba.raxml.mlTrees"))
 
 # run mptp in parallel over a list of trees
 mptp.tab.filter.trees <- mcmapply(function(x,y) mptp_parallel2(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=est.threshold), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
-file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
 
 # join into dataframe
 mptp.combined <- bind_rows(mptp.tab.filter.trees)
 
+# get hashes for sets
 mptp.sets <- mptp.combined %>% 
     group_by(replicate,mptpDelim) %>% 
     arrange(asvHash,.by_group=TRUE) %>% 
@@ -208,47 +154,74 @@ mptp.sets <- mptp.combined %>%
     ungroup() %>%
     mutate(setHash=md5(set))
 
-
+# get frequencies of sets
 mptp.sets.freq <- mptp.sets %>% 
     distinct(replicate,setHash) %>% 
     count(setHash) %>% 
-    rename(setFreq=n) 
+    rename(setFreq=n) %>%
+    mutate(setRank=row_number(desc(setFreq)))
 
+# join sets and asvs
 mptp.sets.joined <- mptp.sets %>% 
     left_join(mptp.sets.freq) %>% 
-    distinct(asvHash,setHash,setFreq) %>% 
-    arrange(desc(setFreq)) %>% 
+    distinct(asvHash,setHash,setFreq,setRank) %>% 
+    arrange(setRank) %>% 
     group_by(asvHash) %>%
     mutate(asvFreq=length(unique(setHash))) %>%
-    ungroup() #%>%
-    #arrange(asvFreq) #%>%
-    #relocate(asvFreq,.before=setHash) %>%
-    #print(n=Inf)
+    ungroup()
 
 # reduce the assignment df
 tax.sub.red <- tax.sub %>% select(asvHash,nreads,assigned,assignedName,tipLabel)
 
 # join with mptp sets and annotate
 mptp.sets.ann <- mptp.sets.joined %>% left_join(tax.sub.red)
-mptp.sets.ann %>% arrange(assigned,desc(setFreq)) %>% print(n=Inf)
+
+# write out
 mptp.sets.ann %>% write_csv(here("temp-local-only/delimitation-probabilities.csv"))
+#mptp.sets.ann <- read_csv(here("temp-local-only/delimitation-probabilities.csv",show_col_types=FALSE))
 
 
-############ MAKE A TREE SET ############
-############ MAKE A TREE SET ############
+############ MAKE A CONSENSUS TREE SET ############
+############ MAKE A CONSENSUS TREE SET ############
 
+# get all trees
 tree.list <- mapply(function(x) read.tree(x), x=list.files(here("temp-local-only"),pattern=".nwk$",full.names=TRUE),USE.NAMES=FALSE,SIMPLIFY=FALSE)
-c(tree.list)
+file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
+
+# write out trees
+class(tree.list) <- "multiPhylo"
+write.nexus(tree.list,file=here("temp-local-only/all.trees.nex"),translate=FALSE)
+
+# run treeannotator to get consensus tree
+all.trees.nex <- tree_annotator(file=here("temp-local-only/all.trees.nex"),heights="keep")
+
+# select asvs with highest set freq
+mptp.sets.ann.sub <- mptp.sets.ann %>% 
+    group_by(asvHash) %>% 
+    slice_max(setFreq,with_ties=FALSE) %>%
+    ungroup()
+#mptp.sets.ann %>% arrange(asvHash,desc(setFreq)) %>% print(n=Inf)
+#mptp.sets.ann.sub %>% distinct(setHash) %>% print(n=Inf)
+
+# get come random colours
+getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
+set.seed(42)
+cols <- sample(getPalette(n=length(unique(pull(mptp.sets.ann.sub,setHash)))))
+
+# annotate and plot the mptp tree
+p <- ggtree(all.trees.nex, ladderize=TRUE, color="grey20") + xlim(0,4)
+p <- p %<+% mptp.sets.ann
+p <- p + geom_tiplab(aes(label=setFreq), geom="text") + 
+    geom_tiplab(aes(fill=setHash,label=tipLabel),geom="label",label.size=0,label.padding=unit(0.2,"lines"),offset=0.07) + 
+    theme(legend.position="none") +
+    scale_fill_manual(values=cols)
+
+# save plot as pdf
+ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=length(all.trees.nex$tip.label)/4, height=length(all.trees.nex$tip.label)/2, units="cm", bg="transparent", limitsize=FALSE)
 
 
-cat *.nwk > all.trees.nwk
 
-trees.nwk <- read.tree(here("temp-local-only/all.trees.nwk"))
-write.nexus(trees.nwk,file= "temp-local-only/all.trees.nwk.nex",translate=FALSE)
 
-treeannotator -heights ca -burninTrees 0 all.trees.nwk.nex all.trees.nwk.nex.mcc.tre
-
-all.trees.nex <- read.nexus(here("temp-local-only/all.trees.nwk.nex.mcc.tre"))
 
 
 ############ VSEARCH 3% CLUSTERING ############

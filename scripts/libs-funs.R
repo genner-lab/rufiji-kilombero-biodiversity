@@ -236,3 +236,29 @@ mptp_parallel2 <- function(df,base.name,tr,num,threshold,filt) {
     mptp.tab.joined <- bind_rows(mptp.tab.list)
     return(mptp.tab.joined)
 }
+
+
+# TREE ANNOTATOR FUN
+tree_annotator <- function(file,heights) {
+        string.ta <- paste0("treeannotator -heights ",heights," -burninTrees 0 ",file," ",paste0(file,".mcc.tre"))
+        system(command=string.ta,ignore.stdout=FALSE)
+        ta.nex <- ape::read.nexus(paste0(file,".mcc.tre"))
+    return(ta.nex)
+}
+
+
+# TEST A ROOTING FUN
+root_on_longest_edge <- function(tr) {
+    long.edge <- which.max(tr$edge.length)
+    long.length <- max(tr$edge.length)
+    long.node <- tr$edge[long.edge,][2]
+    tr.rooted <- phytools::reroot(tree=tr,node.number=long.node,position=0.5*long.length)
+    return(tr.rooted)
+}
+
+# TEST A ROOTING FUN
+#test.tr <- root_on_longest_edge(trs[[5]])
+##test.tr <- midpoint(trs[[5]])
+#p <- ggtree(test.tr , ladderize=TRUE, color="grey20") + xlim(0,5)
+#p <- p + geom_tiplab(geom="text")
+#ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=30, height=400, units="cm", bg="transparent", limitsize=FALSE)
