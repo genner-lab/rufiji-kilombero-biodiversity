@@ -23,6 +23,7 @@ tax.sub <- tax.ass %>%
 # make a basename
 base.name <- here("temp-local-only/mptp.fasta")
 
+
 ############ FILTER BY SWARM IF REQUIRED ############
 ############ FILTER BY SWARM IF REQUIRED ############
 
@@ -58,15 +59,36 @@ tax.sub <- tax.sub %>% mutate(
 tax.sub <- tax.sub %>% filter(include==TRUE)
 
 
+############ FILTER BY N EVENTS  ############
+############ FILTER BY N EVENTS  ############
+
+# get samples data
+asvs.by.sample <- get_samples_table() 
+
+
+# filter and count samples per asv
+asvs.by.sample.n <- asvs.by.sample %>% 
+    filter(asvHash %in% pull(tax.sub,asvHash)) %>% 
+    filter(!grepl("Blank",eventID)) %>%
+    group_by(asvHash) %>%
+    summarise(nEvents=length(unique(sampleHash)))
+
+# join with table
+tax.sub <- tax.sub %>% left_join(asvs.by.sample.n,by="asvHash")
+
+# filter by reads > 1 or events > 1
+tax.sub <- tax.sub %>% filter(nEvents>1 | nreads>1) %>% arrange(desc(nreads))
+
+
 ############ RUN RAXML FOR 100 RANDOM STARTING TREES ############
 ############ RUN RAXML FOR 100 RANDOM STARTING TREES ############
 
-# write out fasta for alignment
-tax.sub.filtered.fas <- tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash")
-write.FASTA(tax.sub.filtered.fas,base.name)
-
-# run raxml over 100 random starting trees
-rand.tr <- raxml_random(file=base.name,epsilon=0.1)
+        # write out fasta for alignment
+        tax.sub.filtered.fas <- tab2fas(df=tax.sub,seqcol="nucleotides",namecol="asvHash")
+        write.FASTA(tax.sub.filtered.fas,base.name)
+        
+        # run raxml over 100 random starting trees
+        rand.tr <- raxml_random(file=base.name,epsilon=0.1)
 
 
 ############ ITERATE MPTP ############
@@ -82,7 +104,7 @@ seqs <- generate_thresholds(start=1,max=tot.reads)
 trs <- read.tree(paste0(base.name,".ali.raxml.rba.raxml.mlTrees"))
 
 # run mptp in parallel over a list of trees
-mptp.tab.all.trees <- mcmapply(function(x,y) mptp_parallel(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=seqs), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
+mptp.tab.all.trees <- mcmapply(function(x,y) mptp_parallel(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=seqs,parsespp=TRUE), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
 file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
 
 # join into dataframe
@@ -105,17 +127,18 @@ max.d <- ceiling(d$x[which.max(d$y)])
 print(max.d)
 
 # get threshold estimate
+#mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% density(adjust=0.1) %>% plot()
+#mptp.combined %>% filter(nClust == max.d) %>% pull(filterThreshold) %>% density(adjust=0.1) %>% plot()
 #est.threshold <- mptp.combined %>% filter(nClust >= max.d-1 & nClust <= max.d+1) %>% pull(filterThreshold) %>% median()
 est.threshold <- mptp.combined %>% filter(nClust == max.d) %>% pull(filterThreshold) %>% median()
 print(est.threshold)
-
 
 # plot gam 
 mptp.combined %>% 
     ggplot(aes(x=filterThreshold,y=nClust)) + 
     geom_boxplot(aes(group=filterThreshold),outlier.shape=NA) +
     geom_jitter(height=0,alpha=0.1) + 
-    geom_smooth(method=mgcv::gam,formula=y~s(x,bs="cs",k=7),alpha=0,color="seagreen") +
+    geom_smooth(method=mgcv::gam,formula=y~s(x,bs="cs",k=4),alpha=0,color="seagreen") +
     scale_x_continuous(trans="log10",labels=scales::comma_format(accuracy=1),n.breaks=6) +
     geom_hline(yintercept=68,lty=2,color="cornflowerblue") +
     geom_hline(yintercept=max.d,lty=2,color="firebrick1") +
@@ -141,7 +164,7 @@ mptp.combined %>%
 trs <- read.tree(paste0(base.name,".ali.raxml.rba.raxml.mlTrees"))
 
 # run mptp in parallel over a list of trees
-mptp.tab.filter.trees <- mcmapply(function(x,y) mptp_parallel2(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=est.threshold), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
+mptp.tab.filter.trees <- mcmapply(function(x,y) mptp_parallel(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=est.threshold,parsespp=FALSE), x=trs, y=seq_along(trs), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
 
 # join into dataframe
 mptp.combined <- bind_rows(mptp.tab.filter.trees)
@@ -207,12 +230,13 @@ mptp.sets.ann.sub <- mptp.sets.ann %>%
 getPalette <- colorRampPalette(brewer.pal(9, "Set1"))
 set.seed(42)
 cols <- sample(getPalette(n=length(unique(pull(mptp.sets.ann.sub,setHash)))))
+print(length(unique(pull(mptp.sets.ann.sub,setHash))))
 
 # annotate and plot the mptp tree
 p <- ggtree(all.trees.nex, ladderize=TRUE, color="grey20") + xlim(0,4)
 p <- p %<+% mptp.sets.ann
 p <- p + geom_tiplab(aes(label=setFreq), geom="text") + 
-    geom_tiplab(aes(fill=setHash,label=tipLabel),geom="label",label.size=0,label.padding=unit(0.2,"lines"),offset=0.07) + 
+    geom_tiplab(aes(fill=setHash,label=tipLabel),geom="label",label.size=0,label.padding=unit(0.2,"lines"),offset=0.1) + 
     theme(legend.position="none") +
     scale_fill_manual(values=cols)
 

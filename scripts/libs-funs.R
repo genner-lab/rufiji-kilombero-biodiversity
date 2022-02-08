@@ -39,7 +39,8 @@ raxml_ng <- function(file,epsilon) {
 
 # RAXML RANDOM 100
 raxml_random <- function(file,epsilon) {
-        string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
+        #string.mafft <- paste0("mafft --thread -1 --maxiterate 2 --retree 2 ",file," > ",file,".ali")
+        string.mafft <- paste0("mafft --thread -1 --maxiterate 1000 --localpair ",file," > ",file,".ali")
         system(command=string.mafft,ignore.stdout=FALSE)
         string.parse <- paste0("raxml-ng --parse --msa ",file,".ali --model TN93+G --seed 42 --redo --threads auto")
         system(command=string.parse,ignore.stdout=FALSE)
@@ -93,7 +94,7 @@ read_mptp <- function(file) {
 
 
 # PARSE MPTP
-parse_mptp <- function(file,filt,num) {
+parse_mptp <- function(file,filt,num,species) {
     mptp.scan <- scan(file=file,what="character",sep="\n",quiet=TRUE)
     skiplines <- grep("Species 1:",mptp.scan)
     skiplines <- skiplines - 1
@@ -107,11 +108,16 @@ parse_mptp <- function(file,filt,num) {
         dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,"Species ","")) %>%
         dplyr::mutate(mptpDelim=paste0("mptp",str_pad(mptpDelim,pad="0",width=4))) %>%
         dplyr::relocate(mptpDelim,.before=asvHash)
-    mptp.species <- mptp.tab %>% 
-        summarise(nClust=length(unique(mptpDelim))) %>% 
-        mutate(filterThreshold=filt,replicate=num) %>% 
-        relocate(filterThreshold,.before=nClust)
-    return(mptp.species)
+    if(species==TRUE) {
+        mptp.species <- mptp.tab %>% 
+            summarise(nClust=length(unique(mptpDelim))) %>% 
+            mutate(filterThreshold=filt,replicate=num) %>% 
+            relocate(filterThreshold,.before=nClust)
+        return(mptp.species)
+    } else if(species==FALSE) {
+        mptp.tab <- mptp.tab %>% mutate(replicate=num)
+        return(mptp.tab) 
+    } else stop(writeLines("species option must be 'TRUE' or 'FALSE'."))
 }
 
 
@@ -179,8 +185,9 @@ drop_tips <- function(df,filt,tree) {
 
 
 # RUN MPTP IN PARALLEL OVER A LIST OF TREES
-mptp_parallel <- function(df,base.name,tr,num,threshold,filt) {
-    tr.lad <- midpoint(unroot(tr))
+mptp_parallel <- function(df,base.name,tr,num,threshold,filt,parsespp) {
+    #tr.lad <- midpoint(unroot(tr))
+    tr.lad <- root_on_longest_edge(unroot(tr))
     trs.seqs <- mcmapply(function(x) drop_tips(df=df,filt=x,tree=tr.lad), x=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     names(trs.seqs) <- paste0("filt",str_pad(as.character(filt),pad="0",width=6))
     base.name.rep <- paste0(base.name,".tr",str_pad(as.character(num),pad="0",width=3),".",names(trs.seqs),".nwk")
@@ -188,51 +195,7 @@ mptp_parallel <- function(df,base.name,tr,num,threshold,filt) {
     #min.edge.length <- mcmapply(function(x) min(x$edge.length), x=trs.seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     min.edge.length <- 1e-07
     mcmapply(function(x,y) run_mptp(file=x,threshold=threshold,minbr=y), x=base.name.rep, y=min.edge.length, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    mptp.tab.list <- mcmapply(function(x,y) parse_mptp(file=x,filt=y,num=num), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    mptp.tab.joined <- bind_rows(mptp.tab.list)
-    return(mptp.tab.joined)
-}
-
-
-
-
-################ TEST FUNS
-
-# PARSE MPTP
-parse_mptp2 <- function(file,filt,num) {
-    mptp.scan <- scan(file=file,what="character",sep="\n",quiet=TRUE)
-    skiplines <- grep("Species 1:",mptp.scan)
-    skiplines <- skiplines - 1
-    writeLines(mptp.scan[1:skiplines])
-    mptp.raw <- readr::read_delim(file,skip=skiplines,delim=",",col_names="asvHash",show_col_types=FALSE)
-    mptp.tab <- mptp.raw %>% 
-        dplyr::mutate(mptpDelim=ifelse(grepl(":",asvHash),asvHash,NA)) %>%
-        tidyr::fill(mptpDelim,.direction="down") %>%
-        dplyr::filter(!grepl(":",asvHash)) %>%
-        dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,":","")) %>%
-        dplyr::mutate(mptpDelim=stringr::str_replace_all(mptpDelim,"Species ","")) %>%
-        dplyr::mutate(mptpDelim=paste0("mptp",str_pad(mptpDelim,pad="0",width=4))) %>%
-        dplyr::relocate(mptpDelim,.before=asvHash)
-    #
-    mptp.tab <- mptp.tab %>% mutate(replicate=num)
-    #mptp.species <- mptp.tab %>% 
-    #    summarise(nClust=length(unique(mptpDelim))) %>% 
-    #    mutate(filterThreshold=filt,replicate=num) %>% 
-    #    relocate(filterThreshold,.before=nClust)
-    return(mptp.tab)
-}
-
-# RUN MPTP IN PARALLEL OVER A LIST OF TREES
-mptp_parallel2 <- function(df,base.name,tr,num,threshold,filt) {
-    tr.lad <- midpoint(unroot(tr))
-    trs.seqs <- mcmapply(function(x) drop_tips(df=df,filt=x,tree=tr.lad), x=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    names(trs.seqs) <- paste0("filt",str_pad(as.character(filt),pad="0",width=6))
-    base.name.rep <- paste0(base.name,".tr",str_pad(as.character(num),pad="0",width=3),".",names(trs.seqs),".nwk")
-    mcmapply(function(x,y) write.tree(phy=x,file=y), x=trs.seqs, y=base.name.rep, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    #min.edge.length <- mcmapply(function(x) min(x$edge.length), x=trs.seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    min.edge.length <- 1e-07
-    mcmapply(function(x,y) run_mptp(file=x,threshold=threshold,minbr=y), x=base.name.rep, y=min.edge.length, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    mptp.tab.list <- mcmapply(function(x,y) parse_mptp2(file=x,filt=y,num=num), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
+    mptp.tab.list <- mcmapply(function(x,y) parse_mptp(file=x,filt=y,num=num,species=parsespp), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.joined <- bind_rows(mptp.tab.list)
     return(mptp.tab.joined)
 }
@@ -262,3 +225,32 @@ root_on_longest_edge <- function(tr) {
 #p <- ggtree(test.tr , ladderize=TRUE, color="grey20") + xlim(0,5)
 #p <- p + geom_tiplab(geom="text")
 #ggsave(plot=p, filename=here("temp-local-only/tree.pdf"), width=30, height=400, units="cm", bg="transparent", limitsize=FALSE)
+
+
+# FUN TO GET THE SAMPLES DATA 
+get_samples_table <- function() {
+    # load master asv table
+    asvs.all <- read_csv(file=here("meta-fish-pipe/temp/taxonomic-assignment/asvs-all.csv"),show_col_types=FALSE)
+    # make id
+    asvs.all %<>% mutate(asvCode=paste(primer,lib,asv,sep="|")) %>% 
+        select(-asv) %>% 
+        rename(asvHash=md5,primerSet=primer,library=lib)
+    # get dirs for otu tables
+    libs.dirs <- list.dirs(path=here("meta-fish-pipe/temp/processing"),full.names=TRUE,recursive=FALSE)
+    # load up all the otu tables
+    tables.list <- lapply(here(libs.dirs,"results/asv-table.tsv"),read_tsv,show_col_types=FALSE)
+    # pivot long and merge otu tables
+    asv.tables.df <- purrr::map_dfr(tables.list,pivot_longer,cols=-asv,names_to="sampleHash",values_to="nreads") %>% 
+        filter(nreads > 0) %>% 
+        rename(asvCode=asv)
+    # load up table of events
+    events.list <- lapply(here(libs.dirs,"results/events-hashes.csv"),read_csv,show_col_types=FALSE)
+    # merge otu tables
+    events.df <- bind_rows(events.list) %>% rename(sampleHash=hashLabel)
+    # join the codes table and events
+    asv.tables.events <- asv.tables.df %>% left_join(events.df,by="sampleHash")
+    # join with the hash table 
+    asvs.by.sample <- asv.tables.events %>% left_join(asvs.all,by=c("asvCode","primerSet","library")) 
+    # return
+    return(asvs.by.sample)
+}
