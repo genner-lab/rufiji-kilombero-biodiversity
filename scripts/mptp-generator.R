@@ -98,7 +98,7 @@ tax.sub <- tax.sub %>% filter(nEvents>1 | nreads>1) %>% arrange(desc(nreads))
 tot.reads <-  ceiling(sum(pull(tax.sub,nreads))*0.0001)
 
 # generate distrib of values
-seqs <- generate_thresholds(start=1,max=tot.reads)
+seqs <- generate_thresholds(start=2,max=tot.reads)
 
 # load up 100 ml trees
 trs <- read.tree(paste0(base.name,".ali.raxml.rba.raxml.mlTrees"))

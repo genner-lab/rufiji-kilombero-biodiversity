@@ -184,16 +184,27 @@ drop_tips <- function(df,filt,tree) {
 }
 
 
+# DROP TIPS FROM TREES
+clean_trees <- function(tr) {
+    tr.clean <- ape::unroot(tr)
+    tr.clean$node.label <- NULL
+    tr.clean <- ape::multi2di(tr.clean,random=FALSE)
+    tr.clean$edge.length[which(tr.clean$edge.length==0)] <- 0.000000005
+    return(tr.clean)
+}
+
+
 # RUN MPTP IN PARALLEL OVER A LIST OF TREES
 mptp_parallel <- function(df,base.name,tr,num,threshold,filt,parsespp) {
+    tr.clean <- clean_trees(tr=tr)
+    tr.lad <- root_on_longest_edge(tr.clean)
     #tr.lad <- midpoint(unroot(tr))
-    tr.lad <- root_on_longest_edge(unroot(tr))
     trs.seqs <- mcmapply(function(x) drop_tips(df=df,filt=x,tree=tr.lad), x=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     names(trs.seqs) <- paste0("filt",str_pad(as.character(filt),pad="0",width=6))
     base.name.rep <- paste0(base.name,".tr",str_pad(as.character(num),pad="0",width=3),".",names(trs.seqs),".nwk")
     mcmapply(function(x,y) write.tree(phy=x,file=y), x=trs.seqs, y=base.name.rep, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     #min.edge.length <- mcmapply(function(x) min(x$edge.length), x=trs.seqs, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
-    min.edge.length <- 1e-07
+    min.edge.length <- 5e-20
     mcmapply(function(x,y) run_mptp(file=x,threshold=threshold,minbr=y), x=base.name.rep, y=min.edge.length, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.list <- mcmapply(function(x,y) parse_mptp(file=x,filt=y,num=num,species=parsespp), x=paste0(base.name.rep,".mptp.out.txt"), y=filt, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=1)
     mptp.tab.joined <- bind_rows(mptp.tab.list)
