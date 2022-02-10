@@ -164,7 +164,46 @@ est.threshold <- mptp.tab.all.trees %>% filter(nClust == max.d) %>% pull(filterT
 print(est.threshold)
 
 
-# BEAST
+
+############ RUN FASTTREE ON EACH BS ############
+############ RUN FASTTREE ON EACH BS ############
+
 # beast run1 (run from temp-local-only)
 export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 beast -beagle -overwrite -seed 802221 mptp.fasta.ali.run1.xml
+
+# read in trees
+beast.trees <- read.nexus(here("temp-local-only/mptp.fasta.ali.run1.trees"))
+
+# subsample trees
+beast.trees.burnin <- beast.trees[6001:10000]
+set.seed(42)
+beast.trees.burnin.sub <- sample(beast.trees.burnin,replace=FALSE,size=1000)
+
+# write out trees
+beast.files <- paste0(base.name,".beast.",str_pad(as.character(1:100),pad="0",width=4),".nwk")
+mapply(function(x,y) ape::write.tree(x,file=y), x=beast.trees.burnin.sub, y=beast.files, USE.NAMES=FALSE, SIMPLIFY=FALSE)
+
+# calculate brlens with raxml
+
+# FUN TO GET BRLENS FROM TREE TOPOLOGY
+optimise_brlens <- function(msa,tree) {
+    string.eval <- paste0("raxml-ng --evaluate --msa ",msa," --model TN93+G --seed 42 --redo --threads 1 --tree ",tree," --prefix ",tree)
+    system(command=string.eval,ignore.stdout=FALSE)
+    rax.tr <- ape::read.tree(file=paste0(tree,".raxml.bestTree"))
+    return(rax.tr)
+}
+
+# 
+
+trs.beast.rax <- mcmapply(function(x) optimise_brlens(msa=here("temp-local-only/mptp.fasta.ali"),tree=x), x=beast.files, USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
+
+
+mptp_parallel(df=tax.sub,base.name=base.name,tr=trs.beast.rax[[1]],num=1,threshold="single",filt=1,parsespp=TRUE)
+
+
+# run mptp in parallel over a list of trees
+mptp.tab.all.trees <- mcmapply(function(x,y) mptp_parallel(df=tax.sub,base.name=base.name,tr=x,num=y,threshold="single",filt=seqs,parsespp=TRUE), x=trs.beast.rax, y=seq_along(trs.beast.rax), USE.NAMES=FALSE, SIMPLIFY=FALSE, mc.cores=8)
+file.remove(list.files(here("temp-local-only"),pattern=".nwk",full.names=TRUE))
+
+
