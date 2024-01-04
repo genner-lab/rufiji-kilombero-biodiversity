@@ -44,4 +44,5 @@ temp-local-only
 meta-fish-pipe
 refseq-reflib
 meta-fish-lib
+meta-fish-lib*
 results
