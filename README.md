@@ -33,9 +33,9 @@ library("tidyverse")
 source(here::here("scripts/references-load-local.R"))
 source(here::here("scripts/references-clean.R"))
 locals <- read_csv(file=here("../assets/local-12s.csv"))
-reflib.local <- reflib.orig %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(phylum,class,order,family,genus,sciNameValid,dbid)
+reflib.local <- reflib.cleaned %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(phylum,class,order,family,genus,sciNameValid,dbid)
 reflib.local %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
-reflib.local %>% write_csv(file=here("../meta-fish-pipe/assets/meta-fish-lib-v245.csv"), na="")
+reflib.local %>% write_csv(file=here("../meta-fish-pipe/assets/meta-fish-lib-v259.csv"), na="")
 
 # qc
 scripts/qc.R -p ~/Software/standard-RAxML/raxmlHPC-AVX -t 1
@@ -58,7 +58,7 @@ cp assets/contaminants-exclude.csv meta-fish-pipe/assets/contaminants-exclude.cs
 # set up pipeline
 cd meta-fish-pipe
 Rscript -e "renv::restore()"
-scripts/session-info.sh  -r assets/refseq208-annotated-tele02.csv -c assets/meta-fish-lib-v245.csv
+scripts/session-info.sh  -r assets/refseq208-annotated-tele02.csv -c assets/meta-fish-lib-v259.csv
 
 # set up libs
 scripts/prepare-libraries.sh -p tele02 -l lib1
@@ -118,3 +118,47 @@ cp assets/meta-fish-lib-v245.csv temp/taxonomic-assignment/custom-reference-libr
 scripts/taxonomic-assignment.sh -t 8 -p tele02
 scripts/assemble-results.R -c assets/contaminants-exclude.csv
 ```
+
+# jan 2024 renanalyse with new ref lib (do in meta-fish-pipe)
+```r
+library("here")
+library("tidyverse")
+library("ape")
+library("phangorn")
+
+# read csv
+tax.ass.new <- read_csv(here("results/taxonomic-assignments.csv"),guess_max=9999)
+tax.ass.old <- read_csv(here("results/taxonomic-assignments-old.csv"),guess_max=9999)
+
+# get old list 
+tax.ass.old.red <- tax.ass.old |> select(asvHash,assignedName) |> rename(assignedNameOld=assignedName)
+
+# join to new list
+tax.ass.new |> 
+    left_join(tax.ass.old.red,by="asvHash") |> 
+    relocate(assignedNameOld,.after="assignedName") |> 
+    select(asvHash,nreads,isFish,assigned,assignedName,assignedNameOld) |> 
+    mutate(same=if_else(assignedName==assignedNameOld,".","DIFFERENT")) |>
+    write_csv(here("results/taxonomic-assignments-differences.csv"))
+
+# tree
+tr <- ape::read.tree(file="results/12s.taberlet.noprimers.fas.ali.raxml.rba.raxml.bestTree")
+tr <- ape::ladderize(phangorn::midpoint(tr))
+
+# fix names
+ass.spp <- tax.ass.new |> filter(isFish==TRUE & assigned==TRUE) |> distinct(assignedName) |> pull(assignedName) |> str_replace_all(" ","_") |> str_replace_all("'","_")
+
+# check names
+ass.spp %in% str_split_fixed(tr$tip.label,"\\|",3)[,2]
+
+# make cols
+cols <- rep("gray20",length(tr$tip.label))
+cols[str_split_fixed(tr$tip.label,"\\|",3)[,2] %in% ass.spp] <- "hotpink"
+
+# plot tree
+pdf(file=here("results/12s.taberlet.noprimers.fas.ali.raxml.rba.raxml.bestTree.pdf"), width=15, height=length(tr$tip.label)/10)
+plot.phylo(tr, tip.col=cols, cex=0.5, font=1, label.offset=0.01, no.margin=TRUE)
+dev.off()
+
+```
+
