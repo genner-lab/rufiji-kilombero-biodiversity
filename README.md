@@ -120,6 +120,35 @@ scripts/assemble-results.R -c assets/contaminants-exclude.csv
 ```
 
 # jan 2024 renanalyse with new ref lib (do in meta-fish-pipe)
+
+```bash
+# in meta-fish-pipe
+cd meta-fish-pipe
+cp path/to/meta-fish-lib-v259.csv temp/taxonomic-assignment/custom-reference-library.csv
+scripts/prep-reflibs.R -p tele02
+makeblastdb -in temp/taxonomic-assignment/custom-reference-library.fasta -dbtype nucl -blastdb_version 5
+blastn -task blastn -num_threads 8 -evalue 1000 -word_size 7 -max_target_seqs 500 -db temp/taxonomic-assignment/custom-reference-library.fasta -outfmt "6 qseqid sseqid evalue length pident nident score bitscore" -out temp/taxonomic-assignment/fish-blast.out -query temp/taxonomic-assignment/asvs-fish.fasta
+echo -e 'asv\tblastDbid\tblastEvalue\tblastLength\tblastPident\tblastNident\tblastScore\tblastBitscore' | sed -e "s/-e //g" > temp/taxonomic-assignment/headers
+cat temp/taxonomic-assignment/headers temp/taxonomic-assignment/fish-blast.out > temp/taxonomic-assignment/fish-blast-result.tsv
+rm temp/taxonomic-assignment/fish-blast.out
+rm temp/taxonomic-assignment/headers
+scripts/process-blast.R
+scripts/prep-epa.R
+mafft --thread 8 --retree 2 --maxiterate 2 temp/taxonomic-assignment/epa/epa.input.fasta > temp/taxonomic-assignment/epa/epa.aligned.fasta
+scripts/split.R
+raxml-ng --parse --msa temp/taxonomic-assignment/epa/epa.references.fasta --model TN93+G --redo
+raxml-ng --search --msa temp/taxonomic-assignment/epa/epa.references.fasta.raxml.rba --tree pars{1} --seed 42 --threads auto{8} --workers auto --lh-epsilon 0.01 --redo
+raxml-ng --evaluate --msa temp/taxonomic-assignment/epa/epa.references.fasta.raxml.rba --tree temp/taxonomic-assignment/epa/epa.references.fasta.raxml.rba.raxml.bestTree --prefix temp/taxonomic-assignment/epa/opt --redo
+epa-ng --ref-msa temp/taxonomic-assignment/epa/epa.references.fasta --tree temp/taxonomic-assignment/epa/epa.references.fasta.raxml.rba.raxml.bestTree --query temp/taxonomic-assignment/epa/epa.queries.fasta --outdir temp/taxonomic-assignment/epa --model temp/taxonomic-assignment/epa/opt.raxml.bestModel --redo --preserve-rooting off
+gappa examine assign --per-query-results --jplace-path temp/taxonomic-assignment/epa/epa_result.jplace --taxon-file temp/taxonomic-assignment/epa/references.taxonomy.tsv --out-dir temp/taxonomic-assignment/epa --allow-file-overwriting
+mv temp/taxonomic-assignment/epa/epa.references.fasta.raxml.rba.raxml.bestTree temp/taxonomic-assignment/epa/references.tree.nwk
+rm temp/taxonomic-assignment/epa/*.log
+rm temp/taxonomic-assignment/epa/*raxml*
+scripts/process-epa.R
+# assemble
+scripts/assemble-results.R -c assets/contaminants-exclude.csv
+```
+
 ```r
 library("here")
 library("tidyverse")
