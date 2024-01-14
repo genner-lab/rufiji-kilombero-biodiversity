@@ -119,13 +119,56 @@ scripts/taxonomic-assignment.sh -t 8 -p tele02
 scripts/assemble-results.R -c assets/contaminants-exclude.csv
 ```
 
-# jan 2024 renanalyse with new ref lib (do in meta-fish-pipe)
+########### jan 2024 renanalyse with new ref lib (do in meta-fish-pipe) ##############
 
+# redo reflib
+```sh
+scripts/references-assemble.R -t 4 -m 12s.taberlet
+```
+
+```r
+cd meta-fish-lib-v259
+cp ../assets/exclusions.csv assets/exclusions.csv
+# in R add local seqs
+library("here")
+library("tidyverse")
+source(here::here("scripts/references-load-local.R"))
+source(here::here("scripts/references-clean.R"))
+locals <- read_csv(file=here("../assets/local-12s.csv"))
+reflib.local <- reflib.cleaned %>% mutate(dbid=as.character(dbid)) %>% bind_rows(locals) %>% arrange(phylum,class,order,family,genus,sciNameValid,dbid)
+reflib.local %>% write_csv(file=gzfile(here("assets/reference-library-master.csv.gz")), na="")
+#reflib.local %>% write_csv(file=here("../meta-fish-pipe/assets/meta-fish-lib-v259.csv"), na="")
+
+```sh
+scripts/qc.R -t 4 -v false
+```
+
+# check the exclusions
+```r
+library("here")
+library("tidyverse")
+library("ape")
+library("phangorn")
+tr <- ape::read.tree(file="temp/qc_v259_Jan-2024/12s.taberlet.noprimers.fas.ali.raxml.rba.raxml.bestTree")
+tr <- ape::ladderize(phangorn::midpoint(tr))
+exc <- read_csv(file=here("../assets/exclusions.csv"))
+cols <- rep("gray20",length(tr$tip.label))
+cols[str_split_fixed(tr$tip.label,"\\|",3)[,1] %in% pull(exc,dbid)] <- "hotpink"
+# plot tree
+pdf(file=here("temp/qc_v259_Jan-2024/12s.taberlet.references.exluded.pdf"), width=15, height=length(tr$tip.label)/10)
+plot.phylo(tr, tip.col=cols, cex=0.5, font=1, label.offset=0.01, no.margin=TRUE)
+dev.off()
+```
+
+
+# rerun assignment
 ```bash
 # in meta-fish-pipe
 cd meta-fish-pipe
 cp path/to/meta-fish-lib-v259.csv temp/taxonomic-assignment/custom-reference-library.csv
 scripts/prep-reflibs.R -p tele02
+vsearch --threads 8 --sintax temp/taxonomic-assignment/asvs-clean-cat-relabel-derep.fasta --db temp/taxonomic-assignment/refseq-annotated.fasta --sintax_cutoff 0.7 --tabbedout temp/taxonomic-assignment/sintax-output.tsv
+scripts/extract-fishes.R
 makeblastdb -in temp/taxonomic-assignment/custom-reference-library.fasta -dbtype nucl -blastdb_version 5
 blastn -task blastn -num_threads 8 -evalue 1000 -word_size 7 -max_target_seqs 500 -db temp/taxonomic-assignment/custom-reference-library.fasta -outfmt "6 qseqid sseqid evalue length pident nident score bitscore" -out temp/taxonomic-assignment/fish-blast.out -query temp/taxonomic-assignment/asvs-fish.fasta
 echo -e 'asv\tblastDbid\tblastEvalue\tblastLength\tblastPident\tblastNident\tblastScore\tblastBitscore' | sed -e "s/-e //g" > temp/taxonomic-assignment/headers
