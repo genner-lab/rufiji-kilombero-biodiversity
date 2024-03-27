@@ -1,0 +1,175 @@
+eventID	Habitat
+TAFIRI-2019.05.21-RUF02-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF02-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF02-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF02-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF02-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF02-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF03-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF03-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF03-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF03-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF03-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF03-A	Kilombero River (plain)
+TAFIRI-2019.05.21-RUF04-A	Kilombero River (tributory low)
+TAFIRI-2019.05.21-RUF04-A	Kilombero River (tributory low)
+TAFIRI-2019.05.21-RUF04-A	Kilombero River (tributory low)
+TAFIRI-2019.05.21-RUF04-A	Kilombero River (tributory low)
+TAFIRI-2019.05.21-RUF04-A	Kilombero River (tributory low)
+TAFIRI-2019.05.21-RUF04-A	Kilombero River (tributory low)
+TAFIRI-2019.05.22-RUF02-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-C	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-C	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-C	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-C	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-C	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF02-C	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF03-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF03-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF03-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF03-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF03-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF03-B	Kilombero River (plain)
+TAFIRI-2019.05.22-RUF05-A	Kilombero River (tributory low)
+TAFIRI-2019.05.22-RUF05-A	Kilombero River (tributory low)
+TAFIRI-2019.05.22-RUF05-A	Kilombero River (tributory low)
+TAFIRI-2019.05.22-RUF05-A	Kilombero River (tributory low)
+TAFIRI-2019.05.22-RUF05-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF06-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF06-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF06-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF06-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF06-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF06-A	Kilombero River (tributory low)
+TAFIRI-2019.05.23-RUF07-A	Kilombero River (tributory high)
+TAFIRI-2019.05.23-RUF07-A	Kilombero River (tributory high)
+TAFIRI-2019.05.23-RUF07-A	Kilombero River (tributory high)
+TAFIRI-2019.05.23-RUF07-A	Kilombero River (tributory high)
+TAFIRI-2019.05.23-RUF07-A	Kilombero River (tributory high)
+TAFIRI-2019.05.23-RUF07-A	Kilombero River (tributory high)
+TAFIRI-2019.05.23-RUF08-A	Great Ruaha River
+TAFIRI-2019.05.23-RUF08-A	Great Ruaha River
+TAFIRI-2019.05.23-RUF08-A	Great Ruaha River
+TAFIRI-2019.05.23-RUF08-A	Great Ruaha River
+TAFIRI-2019.05.23-RUF08-A	Great Ruaha River
+TAFIRI-2019.05.23-RUF08-A	Great Ruaha River
+TAFIRI-2020.07.01-RUF08-B	Great Ruaha River
+TAFIRI-2020.07.01-RUF08-B	Great Ruaha River
+TAFIRI-2020.07.01-RUF08-B	Great Ruaha River
+TAFIRI-2020.07.01-RUF09-A	Kilombero River (tributory high)
+TAFIRI-2020.07.01-RUF09-A	Kilombero River (tributory high)
+TAFIRI-2020.07.01-RUF09-A	Kilombero River (tributory high)
+TAFIRI-2020.07.01-RUF10-A	Kilombero River (tributory low)
+TAFIRI-2020.07.01-RUF10-A	Kilombero River (tributory low)
+TAFIRI-2020.07.01-RUF10-A	Kilombero River (tributory low)
+TAFIRI-2020.07.01-RUF11-A	Kilombero River (tributory low)
+TAFIRI-2020.07.01-RUF11-A	Kilombero River (tributory low)
+TAFIRI-2020.07.01-RUF11-A	Kilombero River (tributory low)
+TAFIRI-2020.07.02-RUF12-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF12-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF12-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF13-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF13-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF13-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF14-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF14-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF14-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF15-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF15-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF15-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF16-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF16-A	Kilombero River (tributory high)
+TAFIRI-2020.07.02-RUF16-A	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF02-D	Kilombero River (plain)
+TAFIRI-2020.07.03-RUF02-D	Kilombero River (plain)
+TAFIRI-2020.07.03-RUF02-D	Kilombero River (plain)
+TAFIRI-2020.07.03-RUF10-B	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF10-B	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF10-B	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF17-A	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF17-A	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF17-A	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF17-B	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF17-B	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF17-B	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF18-A	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF18-A	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF18-A	Kilombero River (tributory high)
+TAFIRI-2020.07.03-RUF19-A	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF19-A	Kilombero River (tributory low)
+TAFIRI-2020.07.03-RUF19-A	Kilombero River (tributory low)
+TAFIRI-2020.07.04-RUF02-E	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-E	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-E	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-F	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-F	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-F	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-G	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-G	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-G	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-H	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-H	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-H	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-I	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-I	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-J	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-J	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF02-J	Kilombero River (plain)
+TAFIRI-2020.07.04-RUF07-B	Kilombero River (tributory high)
+TAFIRI-2020.07.04-RUF07-B	Kilombero River (tributory high)
+TAFIRI-2020.07.04-RUF07-B	Kilombero River (tributory high)
+TAFIRI-2020.07.04-RUF20-A	Kilombero River (tributory low)
+TAFIRI-2020.07.04-RUF20-A	Kilombero River (tributory low)
+TAFIRI-2020.07.04-RUF20-A	Kilombero River (tributory low)
+TAFIRI-2020.07.23-RUF21-A	Rufiji River
+TAFIRI-2020.07.23-RUF21-A	Rufiji River
+TAFIRI-2020.07.23-RUF21-A	Rufiji River
+TAFIRI-2020.07.23-RUF21-B	Rufiji River
+TAFIRI-2020.07.23-RUF21-B	Rufiji River
+TAFIRI-2020.07.23-RUF21-B	Rufiji River
+TAFIRI-2020.07.23-RUF22-A	Rufiji River
+TAFIRI-2020.07.23-RUF22-A	Rufiji River
+TAFIRI-2020.07.23-RUF22-A	Rufiji River
+TAFIRI-2020.07.23-RUF23-A	Rufiji River
+TAFIRI-2020.07.23-RUF23-A	Rufiji River
+TAFIRI-2020.07.23-RUF23-B	Rufiji River
+TAFIRI-2020.07.23-RUF23-B	Rufiji River
+TAFIRI-2020.07.23-RUF23-B	Rufiji River
+TAFIRI-2020.07.23-RUF24-A	Rufiji River
+TAFIRI-2020.07.23-RUF24-A	Rufiji River
+TAFIRI-2020.07.23-RUF24-A	Rufiji River
+TAFIRI-2020.07.24-RUF25-A	Rufiji River
+TAFIRI-2020.07.24-RUF25-A	Rufiji River
+TAFIRI-2020.07.24-RUF25-A	Rufiji River
+TAFIRI-2020.07.24-RUF26-A	Rufiji River
+TAFIRI-2020.07.24-RUF26-A	Rufiji River
+TAFIRI-2020.07.24-RUF26-A	Rufiji River
+TAFIRI-2020.07.24-RUF27-A	Rufiji River
+TAFIRI-2020.07.24-RUF27-A	Rufiji River
+TAFIRI-2020.07.24-RUF27-A	Rufiji River
+TAFIRI-2020.07.24-RUF28-A	Rufiji River
+TAFIRI-2020.07.24-RUF28-A	Rufiji River
+TAFIRI-2020.07.24-RUF28-A	Rufiji River
+TAFIRI-2020.07.25-RUF29-A	Rufiji River
+TAFIRI-2020.07.25-RUF29-A	Rufiji River
+TAFIRI-2020.07.25-RUF29-A	Rufiji River
+TAFIRI-2020.07.25-RUF29-B	Rufiji River
+TAFIRI-2020.07.25-RUF29-B	Rufiji River
+TAFIRI-2020.07.25-RUF29-B	Rufiji River
+TAFIRI-2020.07.25-RUF29-C	Rufiji River
+TAFIRI-2020.07.25-RUF29-C	Rufiji River
+TAFIRI-2020.07.25-RUF29-C	Rufiji River
+TAFIRI-2020.07.25-RUF30-A	Rufiji River
+TAFIRI-2020.07.25-RUF30-A	Rufiji River
+TAFIRI-2020.07.25-RUF30-A	Rufiji River
+TAFIRI-2020.07.25-RUF31-A	Rufiji River
+TAFIRI-2020.07.25-RUF31-A	Rufiji River
+TAFIRI-2020.07.25-RUF31-A	Rufiji River
+TAFIRI-2020.07.25-RUF32-A	Mansi
+TAFIRI-2020.07.25-RUF32-A	Mansi
+TAFIRI-2020.07.25-RUF32-A	Mansi
