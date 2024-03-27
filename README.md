@@ -1,6 +1,7 @@
 # rufiji-kilombero-biodiversity
 12S eDNA biodiversity survey of the Kilombero and Rufiji rivers
 
+**Metabarcoding bioinformatic scripts and assets**
 ```
 # clone repos
 git clone https://github.com/genner-lab/rufiji-kilombero-biodiversity.git
@@ -30,6 +31,8 @@ cp assets/reference-library-master.csv.gz assets/reference-library-master-noloca
 # add local seqs and qc
 cp ../assets/add-local-reflib.R scripts/add-local-reflib.R
 scripts/add-local-reflib.R
+
+
 
 # qc
 scripts/qc.R -t 4 -v false
@@ -89,3 +92,12 @@ scripts/taxonomic-assignment.sh -t 8 -p tele02
 scripts/assemble-results.R -c assets/contaminants-exclude.csv
 ```
 
+**Data analysis scripts and assets**
+
+Asilatu_RufijiCode.R Code for analyses of read abundance matrix
+
+SpeciesData.txt Matrix of read abundance per species per sample
+SpeciesData_Ifakara.txt Matrix of read abundance per species per sample from Ifakara only
+Environmental.txt Recorded environmental data for each sampling event
+Habitat.txt Classification of each sample by major habitat type
+Rufiji_simplified.geojson A simplified geojson file used with GBIF to generate initial species list for Table S2
