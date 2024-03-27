@@ -97,7 +97,11 @@ scripts/assemble-results.R -c assets/contaminants-exclude.csv
 Asilatu_RufijiCode.R Code for analyses of read abundance matrix
 
 SpeciesData.txt Matrix of read abundance per species per sample
+
 SpeciesData_Ifakara.txt Matrix of read abundance per species per sample from Ifakara only
+
 Environmental.txt Recorded environmental data for each sampling event
+
 Habitat.txt Classification of each sample by major habitat type
+
 Rufiji_simplified.geojson A simplified geojson file used with GBIF to generate initial species list for Table S2
