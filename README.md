@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/406843980.svg)](https://zenodo.org/doi/10.5281/zenodo.13622930)
+
 # rufiji-kilombero-biodiversity
 12S eDNA biodiversity survey of the Kilombero and Rufiji rivers
 
