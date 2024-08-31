@@ -367,38 +367,3 @@ SpeciesMatrix49 <- left_join(eventID_Lat_Long, SpeciesMatrix49, by = join_by(eve
 write.table (SpeciesMatrix49, file="SpeciesMatrix49.txt", sep = ";")
 
 #End of code
-
-#Core Rare Analsus
-
-library(dplyr)
-
-CoreRare_Ifakara <- as.data.frame(t(IfakaraData))
-CoreRare_Ifakara$AverageReads <- rowMeans(CoreRare_Ifakara[,1:50])
-CoreRare_Ifakara$NumberSamples <-rowSums(CoreRare_Ifakara[,1:50] > 0)
-CoreRare_Ifakara <- subset(CoreRare_Ifakara, !CoreRare_Ifakara$NumberSamples==0)
-fitmodel <- lm(log10(AverageReads) ~ poly(NumberSamples, 3, raw=TRUE),data=CoreRare_Ifakara)
-summary(fitmodel)
-
-Plot <- ggplot(CoreRare_Ifakara, aes(NumberSamples,log10(AverageReads))) + 
-  stat_smooth(method="lm",
-              formula=y ~ poly(x, 3, raw=TRUE),colour="black", se=FALSE)+
-  geom_point() +
-  theme_classic()+
-  labs(x ="Number of Samples", y = "Mean reads per sample (log10 transformed)")
-Plot
-
-CoreRareBlank<- read.table("Core_Rare_Blank.txt",header=TRUE,fill=TRUE,sep="\t",check.names=FALSE)
-CoreRareBlank$Prediction<- predict(fitmodel,newdata=CoreRareBlank)
-CoreRareBlank <- CoreRareBlank %>%mutate(Calc = Prediction - lag(Prediction))
-
-#Output theinflexion point
-CoreRareBlank$NumberSamples[which.min(CoreRareBlank$Calc[1:50])]
-
-#AssignCoreRare and clean up
-CoreRare_Ifakara$Group = as.numeric(CoreRare_Ifakara$NumberSamples)
-CoreRare_Ifakara$Group <- ifelse(CoreRare_Ifakara$NumberSamples>=32,"Core","Rare")
-CoreRare_Ifakara$Species <- rownames(CoreRare_Ifakara)
-CoreRare_Ifakara <- CoreRare_Ifakara[51:54]
-
-#
-
