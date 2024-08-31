@@ -100,6 +100,10 @@ SpeciesData.txt Matrix of read abundance per species per sample
 
 SpeciesData_Ifakara.txt Matrix of read abundance per species per sample from Ifakara only
 
+Water_filtered.txt Data for analyses exploring if volume of water filtered affects read and species counts in eDNA metabarcoding output
+
+eventID_Lat_Long.txt Geographic coordinates of sampling sites
+
 Environmental.txt Recorded environmental data for each sampling event
 
 Habitat.txt Classification of each sample by major habitat type
